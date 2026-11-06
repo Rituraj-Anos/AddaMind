@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Callable
 
-from . import db, media, retrieval
+from . import db, media, memory, personas, retrieval
 from .parser import Message, norm_name, parse_export
 
 log = logging.getLogger("addamind.ingest")
@@ -251,8 +251,23 @@ def stage_index(job: Job) -> None:
     job.info.update(retrieval.build_passages(job.project_id, job.chat_id, job.progress))
 
 
+def stage_memory(job: Job) -> None:
+    """Monthly summaries for months this upload touched (all of them for a new chat), then chat memory."""
+    if not memory.enabled():
+        job.info["memory"] = "off"
+        return
+    job.info.update(memory.build_memory(job.project_id, job.chat_id, job.info.get("months"), job.progress))
+
+
+def stage_personas(job: Job) -> None:
+    if not memory.enabled() or not job.new:
+        return
+    job.info.update(personas.build_top(job.project_id, job.chat_id, on_progress=job.progress))
+
+
 STAGES: list[tuple[str, Callable[[Job], None]]] = [("parse", stage_parse), ("media", stage_media),
-                                                   ("index", stage_index)]
+                                                   ("index", stage_index), ("memory", stage_memory),
+                                                   ("personas", stage_personas)]
 
 
 def run_job(pid: int, job_id: int) -> None:

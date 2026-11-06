@@ -34,15 +34,17 @@ def inline_schema(model: type[BaseModel]) -> dict:
     schema = model.model_json_schema()
     defs = schema.pop("$defs", {})
 
-    def resolve(node, depth=0):
+    def resolve(node, depth=0, in_properties=False):
         if depth > 20:
             raise ValueError("schema is too deeply nested or recursive")
         if isinstance(node, dict):
-            if "$ref" in node:
+            if "$ref" in node and not in_properties:
                 target = copy.deepcopy(defs[node["$ref"].split("/")[-1]])
                 rest = {k: v for k, v in node.items() if k != "$ref"}
                 return resolve({**target, **rest}, depth + 1)
-            return {k: resolve(v, depth + 1) for k, v in node.items() if k != "title"}
+            # Inside "properties" the keys are field names: a field called "title" must stay.
+            return {k: resolve(v, depth + 1, k == "properties" and not in_properties)
+                    for k, v in node.items() if in_properties or k != "title"}
         if isinstance(node, list):
             return [resolve(v, depth + 1) for v in node]
         return node

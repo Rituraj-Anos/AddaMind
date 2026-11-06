@@ -6,6 +6,8 @@
     POST   /projects/{pid}/chats                      multipart `file` (.txt or .zip), optional `chat_id` to append
     GET    /projects/{pid}/chats, /chats/{cid}
     GET    /projects/{pid}/stats, /graph, /chats/{cid}/stats, /chats/{cid}/graph   (exact, no model)
+    GET    /projects/{pid}/chats/{cid}/memory              timeline, topics, mood, jokes, dynamics
+    GET    /projects/{pid}/participants/{part_id}/persona?chat_id=   built on first request
     DELETE /projects/{pid}/chats/{cid}
     GET    /projects/{pid}/jobs, /jobs/{jid}, /jobs/{jid}/events (SSE: one job JSON per change)
     GET    /projects/{pid}/chats/{cid}/messages?around=&before=&limit=
@@ -26,7 +28,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import analytics, db, ingest, retrieval
+from . import analytics, db, ingest, memory, personas, retrieval
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -132,6 +134,20 @@ def chat_stats(pid: int, cid: int):
 @router.get("/{pid}/chats/{cid}/graph")
 def chat_graph(pid: int, cid: int):
     return _found(analytics.graph(pid, cid), "chat")
+
+
+@router.get("/{pid}/chats/{cid}/memory")
+def chat_memory(pid: int, cid: int):
+    _found(db.get_chat(pid, cid), "chat")
+    return _found(memory.get_memory(pid, cid), "memory (still processing?)")
+
+
+@router.get("/{pid}/participants/{part_id}/persona")
+def participant_persona(pid: int, part_id: int, chat_id: int | None = None):
+    try:
+        return _found(personas.get(pid, part_id, chat_id), "participant or chat")
+    except ValueError as e:
+        raise HTTPException(404, str(e))
 
 
 @router.get("/{pid}/jobs")
