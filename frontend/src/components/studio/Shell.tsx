@@ -141,6 +141,13 @@ function Offline() {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
+  const path = usePathname();
+  // Wrapped is a full-screen story: no rail, no header.
+  if (path.endsWith("/wrapped")) return <MotionConfig reducedMotion="user">{children}</MotionConfig>;
+  return <Framed>{children}</Framed>;
+}
+
+function Framed({ children }: { children: ReactNode }) {
   const { status } = useStudio();
   const [open, setOpen] = useState(false);
   const path = usePathname();

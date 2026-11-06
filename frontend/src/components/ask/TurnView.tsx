@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, CircleAlert, Copy, Pause, RotateCcw, ShieldCheck, Volume2, X } from "lucide-react";
+import { Check, CircleAlert, Copy, RotateCcw, ShieldCheck, Volume2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Reply, Roast, Turn } from "@/lib/agent";
+import { api } from "@/lib/api";
 import { Markdown } from "../Markdown";
 import { Marquee } from "../studio/Marquee";
 import { Spinner } from "../ui";
@@ -112,37 +113,72 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-/** Reads a roast aloud with the browser's voice (en-IN when the system has one). */
-function SpeakButton({ text }: { text: string }) {
-  const [on, setOn] = useState(false);
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
-  if (typeof window !== "undefined" && !("speechSynthesis" in window)) return null;
+function Wave() {
+  return (
+    <span aria-hidden className="flex h-4 items-end gap-[3px]">
+      {[0, 1, 2, 3].map((i) => (
+        <span key={i} className="wave-bar bg-cream w-[3px] rounded-full" style={{ animationDelay: `${i * 120}ms` }} />
+      ))}
+    </span>
+  );
+}
+
+/** Reads a roast aloud: Gemini's voice from the API, the browser's voice (en-IN when available) if that fails. */
+function SpeakButton({ pid, text }: { pid: number; text: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "playing">("idle");
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const url = useRef<string | null>(null);
+  useEffect(
+    () => () => {
+      audio.current?.pause();
+      if (url.current) URL.revokeObjectURL(url.current);
+      window.speechSynthesis?.cancel();
+    },
+    [],
+  );
+
+  function browserVoice() {
+    const s = window.speechSynthesis;
+    if (!s) return setState("idle");
+    s.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = s.getVoices().find((v) => v.lang === "en-IN") ?? null;
+    u.onend = u.onerror = () => setState("idle");
+    s.speak(u);
+    setState("playing");
+  }
+
+  async function play() {
+    if (state !== "idle") {
+      audio.current?.pause();
+      window.speechSynthesis?.cancel();
+      return setState("idle");
+    }
+    setState("loading");
+    try {
+      if (!url.current) url.current = URL.createObjectURL(await api.speak(pid, text));
+      const a = new Audio(url.current);
+      audio.current = a;
+      a.onended = a.onerror = () => setState("idle");
+      await a.play();
+      setState("playing");
+    } catch {
+      browserVoice();
+    }
+  }
+
   return (
     <button
-      aria-label={on ? "Stop reading" : "Read aloud"}
-      onClick={() => {
-        const s = window.speechSynthesis;
-        if (on) {
-          s.cancel();
-          setOn(false);
-          return;
-        }
-        s.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.voice = s.getVoices().find((v) => v.lang === "en-IN") ?? null;
-        u.rate = 1.02;
-        u.onend = u.onerror = () => setOn(false);
-        s.speak(u);
-        setOn(true);
-      }}
-      className="bg-night text-cream hover:bg-night-3 grid size-9 shrink-0 place-items-center rounded-full transition-colors"
+      aria-label={state === "idle" ? "Read aloud" : "Stop reading"}
+      onClick={play}
+      className="bg-night text-cream hover:bg-night-3 grid size-10 shrink-0 place-items-center rounded-full transition-colors"
     >
-      {on ? <Pause aria-hidden className="size-4" /> : <Volume2 aria-hidden className="size-4" />}
+      {state === "loading" ? <Spinner /> : state === "playing" ? <Wave /> : <Volume2 aria-hidden className="size-4" />}
     </button>
   );
 }
 
-function Roasts({ items, onCite }: { items: Roast[]; onCite: (id: number) => void }) {
+function Roasts({ pid, items, onCite }: { pid: number; items: Roast[]; onCite: (id: number) => void }) {
   return (
     <ol className="grid gap-4">
       {items.map((r, i) => (
@@ -154,7 +190,7 @@ function Roasts({ items, onCite }: { items: Roast[]; onCite: (id: number) => voi
           <div className="flex items-start gap-4">
             <span className="display text-[40px] leading-none">{i + 1}</span>
             <p className="flex-1 text-[19px] leading-snug font-semibold">{r.text}</p>
-            <SpeakButton text={r.text} />
+            <SpeakButton pid={pid} text={r.text} />
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-[13px]">
             {r.status === "rewritten" && (
@@ -196,12 +232,14 @@ function Replies({ items }: { items: Reply[] }) {
 }
 
 export function TurnView({
+  pid,
   turn,
   scope,
   onCite,
   activeCite,
   onRetry,
 }: {
+  pid: number;
   turn: Turn;
   scope: string;
   onCite: (id: number) => void;
@@ -271,7 +309,7 @@ export function TurnView({
           ) : f.data && "roasts" in f.data && f.data.roasts.length ? (
             <>
               <p className="display mb-5 text-[40px] text-cream">{f.data.target}, roasted</p>
-              <Roasts items={f.data.roasts} onCite={onCite} />
+              <Roasts pid={pid} items={f.data.roasts} onCite={onCite} />
               {f.data.dropped > 0 && (
                 <p className="text-cream-3 mt-4 text-sm">
                   {f.data.dropped} roast{f.data.dropped === 1 ? " was" : "s were"} dropped by the safety check.

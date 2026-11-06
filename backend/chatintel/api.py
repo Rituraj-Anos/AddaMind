@@ -16,6 +16,7 @@
     GET    /projects/{pid}/media/{media_id}
     POST   /projects/{pid}/agent   {agent, message, scope_type, scope_id, thread_id?, options} -> SSE
     GET    /projects/{pid}/threads?agent=&scope_type=&scope_id=, /threads/{tid};  DELETE /threads/{tid}
+    POST   /projects/{pid}/tts {"text"} -> audio/wav (502: use the browser's voice)
     GET    /projects/{pid}/participants
     PATCH  /projects/{pid}/participants/{part_id}     {"is_me"?, "roast_opt_out"?}
     POST   /projects/{pid}/participants/{part_id}/merge {"into"}
@@ -28,13 +29,13 @@ import time
 from typing import Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.api.store import to_display
 from backend.core.llm import Message
 
-from . import agents, analytics, db, ingest, memory, personas, retrieval
+from . import agents, analytics, db, ingest, memory, personas, retrieval, voice
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -313,6 +314,21 @@ def delete_thread(pid: int, tid: int):
 
 
 # ---------------------------------------------------------------- participants
+class SpeakIn(BaseModel):
+    text: str = Field(min_length=1, max_length=voice.MAX_CHARS)
+
+
+@router.post("/{pid}/tts")
+def speak(pid: int, body: SpeakIn):
+    """A roast read aloud as WAV. 502 tells the client to fall back to the browser's voice."""
+    _project(pid)
+    try:
+        audio = voice.speak(body.text)
+    except voice.VoiceError as e:
+        raise HTTPException(502, f"text to speech failed: {e}")
+    return Response(audio, media_type="audio/wav", headers={"Cache-Control": "private, max-age=86400"})
+
+
 @router.get("/{pid}/participants")
 def list_participants(pid: int):
     _project(pid)

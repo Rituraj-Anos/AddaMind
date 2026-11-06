@@ -286,6 +286,7 @@ export default function AskPage() {
               {turns.map((t) => (
                 <TurnView
                   key={t.key}
+                  pid={pid}
                   turn={t}
                   scope={scopeName}
                   onCite={openCite}

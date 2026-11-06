@@ -227,3 +227,37 @@ def test_roast_target_is_the_full_name(project, monkeypatch):
 ])
 def test_strip_cites_leaves_clean_sentences(raw, clean):
     assert agents.strip_cites(raw) == clean
+
+
+def test_tts_wraps_pcm_caches_and_reports_failure(project, monkeypatch):
+    import base64
+
+    from fastapi.testclient import TestClient
+
+    from backend.api.main import app
+    from backend.chatintel import voice
+
+    pid, _, _ = project
+    calls = []
+
+    class R:
+        ok, status_code = True, 200
+
+        def json(self):
+            return {"candidates": [{"content": {"parts": [{"inlineData": {
+                "mimeType": "audio/L16;codec=pcm;rate=24000", "data": base64.b64encode(b"\0\1" * 100).decode()}}]}}]}
+
+    monkeypatch.setattr(voice.requests, "post", lambda *a, **k: calls.append(1) or R())
+    c = TestClient(app)
+    r = c.post(f"/projects/{pid}/tts", json={"text": "Rohan's minute lasts an hour"})
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/wav"
+    assert r.content[:4] == b"RIFF" and r.content[8:12] == b"WAVE" and len(r.content) == 44 + 200
+    c.post(f"/projects/{pid}/tts", json={"text": "Rohan's minute lasts an hour"})
+    assert len(calls) == 1  # second time from the disk cache
+
+    class Bad:
+        ok, status_code = False, 429
+
+    monkeypatch.setattr(voice.requests, "post", lambda *a, **k: Bad())
+    assert c.post(f"/projects/{pid}/tts", json={"text": "something new"}).status_code == 502
+    assert c.post(f"/projects/{pid}/tts", json={"text": ""}).status_code == 422

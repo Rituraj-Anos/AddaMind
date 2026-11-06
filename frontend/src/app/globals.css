@@ -257,6 +257,27 @@ a {
   color: var(--color-night);
 }
 
+@keyframes wave {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.wave-bar {
+  height: 100%;
+  transform-origin: bottom;
+  animation: wave 0.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wave-bar {
+    animation: none;
+    transform: scaleY(0.6);
+  }
+}
+
 @keyframes flash {
   from {
     box-shadow: 0 0 0 3px var(--color-pink);

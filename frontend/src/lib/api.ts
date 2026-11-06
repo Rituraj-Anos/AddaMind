@@ -68,6 +68,12 @@ export const api = {
     request<{ message: Msg; before: Msg[]; after: Msg[] }>(`/projects/${pid}/messages/${mid}?context=${context}`),
   mediaUrl: (pid: number, mediaId: number) => `${API_URL}/projects/${pid}/media/${mediaId}`,
   memory: (pid: number, cid: number) => request<ChatMemory>(`/projects/${pid}/chats/${cid}/memory`),
+  /** A roast as WAV from Gemini's voice. Throws when the server can't, so the caller can use the browser's voice. */
+  speak: async (pid: number, text: string): Promise<Blob> => {
+    const r = await fetch(`${API_URL}/projects/${pid}/tts`, json("POST", { text }));
+    if (!r.ok) throw new ApiError(r.status, "text to speech failed");
+    return r.blob();
+  },
   graph: (pid: number, cid: number) => request<ReplyGraph>(`/projects/${pid}/chats/${cid}/graph`),
   persona: (pid: number, partId: number, cid?: number) =>
     request<Persona>(`/projects/${pid}/participants/${partId}/persona${cid ? `?chat_id=${cid}` : ""}`),
