@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
-import { ChartSpline, FolderOpen, MessageCircleQuestion, Menu, Sparkles, Users, WifiOff, X } from "lucide-react";
+import { ChartSpline, FolderOpen, House, MessageCircleQuestion, Menu, Sparkles, Users, WifiOff, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -12,7 +12,7 @@ import { useStudio } from "./StudioProvider";
 
 function Wordmark() {
   return (
-    <Link href="/studio" className="display block text-[30px] text-cream">
+    <Link href="/" aria-label="AddaMind home page" className="display block text-[30px] text-cream">
       AddaMind
     </Link>
   );
@@ -45,6 +45,9 @@ function RailBody() {
       </div>
 
       <nav aria-label="Studio" className="flex flex-col gap-1">
+        <NavLink href="/" exact icon={<House aria-hidden className="size-[18px]" />}>
+          Home page
+        </NavLink>
         <NavLink href="/studio" exact icon={<FolderOpen aria-hidden className="size-[18px]" />}>
           All projects
         </NavLink>
