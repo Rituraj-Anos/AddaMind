@@ -216,3 +216,14 @@ def test_roast_target_is_the_full_name(project, monkeypatch):
     monkeypatch.setattr(agents, "router", lambda: fake)
     ev = final(agents.run(pid, "roaster", "roast Rohan's voice notes", "chat", chats["College Friends"]))
     assert ev["data"]["target"] == "Rohan Das" and ev["text"].startswith("**Rohan Das**")
+
+
+@pytest.mark.parametrize("raw, clean", [
+    ("typing a message [[m:1], [m:2]].", "typing a message."),
+    ("lectures [m:3], [m:4].", "lectures."),
+    ("ek minute [[m:5]] is a lie [[m:6]]", "ek minute is a lie"),
+    ("no tags here, really.", "no tags here, really."),
+    ("trailing tag, [m:7]", "trailing tag"),
+])
+def test_strip_cites_leaves_clean_sentences(raw, clean):
+    assert agents.strip_cites(raw) == clean

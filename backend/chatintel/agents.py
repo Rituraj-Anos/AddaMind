@@ -222,7 +222,10 @@ def strip_cites(text: str) -> str:
     """Remove citation tags (and the brackets and commas they leave) from a line; evidence travels separately."""
     t = ANY_TAG.sub("", text or "")
     t = re.sub(r"\[[\s,]*\]|\([\s,]*\)", "", t)
-    return re.sub(r"\s+([.,!?;:])", r"\1", re.sub(r"[ \t]{2,}", " ", t)).strip()
+    t = re.sub(r"[ \t]{2,}", " ", t)
+    t = re.sub(r"[\s,;]+([.!?])", r"\1", t)  # "message [m:1], [m:2]." left "message , ."
+    t = re.sub(r"\s+([,;:])", r"\1", t)
+    return re.sub(r"[\s,;:]+$", "", t).strip()
 
 
 def _roast_text(target: str, items: list[dict]) -> str:
