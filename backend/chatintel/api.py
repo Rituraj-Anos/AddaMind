@@ -5,6 +5,7 @@
     DELETE /projects/{pid}                            removes all rows and files
     POST   /projects/{pid}/chats                      multipart `file` (.txt or .zip), optional `chat_id` to append
     GET    /projects/{pid}/chats, /chats/{cid}
+    GET    /projects/{pid}/stats, /graph, /chats/{cid}/stats, /chats/{cid}/graph   (exact, no model)
     DELETE /projects/{pid}/chats/{cid}
     GET    /projects/{pid}/jobs, /jobs/{jid}, /jobs/{jid}/events (SSE: one job JSON per change)
     GET    /projects/{pid}/chats/{cid}/messages?around=&before=&limit=
@@ -24,7 +25,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import db, ingest
+from . import analytics, db, ingest
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -108,6 +109,28 @@ def get_chat(pid: int, cid: int):
 @router.delete("/{pid}/chats/{cid}")
 def delete_chat(pid: int, cid: int):
     return _found(db.delete_chat(pid, cid), "chat")
+
+
+@router.get("/{pid}/stats")
+def project_stats(pid: int):
+    _project(pid)
+    return analytics.stats(pid)
+
+
+@router.get("/{pid}/graph")
+def project_graph(pid: int):
+    _project(pid)
+    return analytics.graph(pid)
+
+
+@router.get("/{pid}/chats/{cid}/stats")
+def chat_stats(pid: int, cid: int):
+    return _found(analytics.stats(pid, cid), "chat")
+
+
+@router.get("/{pid}/chats/{cid}/graph")
+def chat_graph(pid: int, cid: int):
+    return _found(analytics.graph(pid, cid), "chat")
 
 
 @router.get("/{pid}/jobs")
