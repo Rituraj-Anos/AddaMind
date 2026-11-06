@@ -1,6 +1,6 @@
 """AddaMind HTTP routes. Everything sits under /projects/{pid}, so no route can read across projects.
 
-    POST   /projects                                  {"name"}
+    POST   /projects                                  {"name"};  PATCH /projects/{pid} {"name"} renames
     GET    /projects, /projects/{pid}                 (get includes chats)
     DELETE /projects/{pid}                            removes all rows and files
     POST   /projects/{pid}/chats                      multipart `file` (.txt or .zip), optional `chat_id` to append
@@ -78,6 +78,12 @@ def list_projects():
 @router.get("/{pid}")
 def get_project(pid: int):
     return {**_project(pid), "chats": db.list_chats(pid)}
+
+
+@router.patch("/{pid}")
+def rename_project(pid: int, body: ProjectIn):
+    _project(pid)
+    return db.rename_project(pid, body.name.strip())
 
 
 @router.delete("/{pid}")

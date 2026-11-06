@@ -1,0 +1,199 @@
+/* Hallmark · shape: app screen · genre: atmospheric · theme: custom (by request: the owner's onear.framer.website reference)
+ * paper: oklch(17.8% 0 0) · accent: oklch(91% 0.21 125) · display: Anton · body: Hanken Grotesk
+ * nav: chat-app rail, a menu under 64rem · signature: the stage track of each upload, then the On Air panel · states: loading, empty, error, offline, processing
+ * axes: dark/grotesk-condensed/chromatic-lime · posture: night stage, lime for action and live state, pink for the second voice · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: S, a dark tool with a lime accent could be anyone's; the screens carry this product's own objects: the five-stage upload track with real counts, people with "this is me" */
+@import "tailwindcss";
+
+/* Text on lime, pink, cream and ice is always night. Retheme here, not in components. */
+@theme {
+  --color-night: #111111;
+  --color-night-2: #181818;
+  --color-night-3: #232323;
+  --color-line: #2e2e2e;
+  --color-line-strong: #6a6a6a;
+  --color-scrim: rgb(0 0 0 / 0.6);
+
+  --color-cream: #f3efe6;
+  --color-cream-2: #bdb8ac;
+  --color-cream-3: #9a958a;
+
+  --color-lime: #c6f432;
+  --color-lime-2: #d6ff4a;
+  --color-pink: #ff4f9c;
+  --color-ice: #8fd3ff;
+  --color-alarm: #ff7a66;
+  --color-alarm-2: #ff9482;
+  --color-bubble: #ffffff;
+
+  --shadow-lift: 0 24px 60px -20px rgb(0 0 0 / 0.7);
+  --shadow-pop: 4px 4px 0 0 #ff4f9c;
+  --shadow-block: 10px 10px 0 0 #111111;
+  --color-paper: #f3efe6;
+  --color-paper-2: #e9e3d6;
+  --color-ink: #141414;
+  --color-ink-2: #4a463f;
+  --color-rule: #d8d0c0;
+
+  --font-display: var(--font-anton), "Arial Narrow", sans-serif;
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "Cascadia Mono", monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+html {
+  background: var(--color-night);
+  caret-color: var(--color-lime);
+  scrollbar-color: var(--color-line-strong) transparent;
+  scrollbar-width: thin;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-night);
+  color: var(--color-cream);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  min-height: 100dvh;
+}
+
+::selection {
+  background: var(--color-lime);
+  color: var(--color-night);
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-lime);
+    outline-offset: 2px;
+  }
+  /* A lime ring on a lime control would vanish. */
+  .on-lime:focus-visible {
+    outline-color: var(--color-cream);
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    overflow-wrap: break-word;
+    min-width: 0;
+  }
+  p {
+    text-wrap: pretty;
+  }
+}
+
+a {
+  text-underline-offset: 3px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  line-height: 0.95;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+/* A running line of what an upload or an agent is doing. Two copies make the loop seamless. */
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee var(--marquee-speed, 40s) linear infinite;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes shimmer {
+  50% {
+    opacity: 0.45;
+  }
+}
+.skeleton {
+  background: var(--color-night-3);
+  border-radius: 999px;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.rise {
+  animation: rise 0.42s var(--ease-out-expo) both;
+}
+
+/* The hero's one entrance on load: text first, the card a beat later. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-in {
+    animation: reveal-in 0.9s var(--ease-out-expo) both;
+  }
+  .hero-in-late {
+    animation-delay: 0.18s;
+  }
+}
+
+/* Scroll-driven reveals: only where supported and wanted; everywhere else the content simply shows. */
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(36px);
+  }
+}
+@keyframes fill-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+.fill {
+  transform: scaleX(var(--fill, 1));
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal-in linear both;
+      animation-timeline: view();
+      /* Finishes within the first 280px of entering, so tall blocks never sit half-faded. */
+      animation-range: entry var(--reveal-start, 0%) entry 280px;
+    }
+    .fill {
+      animation: fill-in linear both;
+      animation-timeline: view();
+      animation-range: entry 10% cover 40%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track,
+  .skeleton,
+  .rise {
+    animation: none;
+  }
+}

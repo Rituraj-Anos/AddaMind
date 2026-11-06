@@ -193,6 +193,12 @@ def get_project(pid: int) -> dict | None:
     return dict(r) if r else None
 
 
+def rename_project(pid: int, name: str) -> dict | None:
+    with connect() as con:
+        con.execute("UPDATE projects SET name = ? WHERE id = ?", (name, pid))
+    return get_project(pid)
+
+
 def _remove_dir(path: Path) -> bool:
     shutil.rmtree(path, ignore_errors=True)
     return not path.exists()

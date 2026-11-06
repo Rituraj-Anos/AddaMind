@@ -172,8 +172,11 @@ def test_api_end_to_end():
     assert c.get(f"/projects/{other}/chats/{cid}").status_code == 404
     assert c.get(f"/projects/{other}/chats/{cid}/messages").status_code == 404
     assert c.post(f"/projects/{pid}/chats", files={"file": ("notes.pdf", b"x")}).status_code == 400
+    assert c.patch(f"/projects/{pid}", json={"name": " College days "}).json()["name"] == "College days"
+    assert c.patch(f"/projects/{pid}", json={"name": ""}).status_code == 422
     assert c.delete(f"/projects/{pid}").status_code == 200
     assert c.get(f"/projects/{pid}").status_code == 404
+    assert c.patch(f"/projects/{pid}", json={"name": "x"}).status_code == 404
 
 
 def test_only_startup_recovery_fails_running_jobs():
