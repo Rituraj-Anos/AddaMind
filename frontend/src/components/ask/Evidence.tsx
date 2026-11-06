@@ -60,7 +60,19 @@ function Bubble({ m, me, pid, focus }: { m: Msg; me: boolean; pid: number; focus
 }
 
 /** The opened message with five messages either side. */
-function Context({ pid, id, meId, onBack }: { pid: number; id: number; meId: number | null; onBack: () => void }) {
+export function Context({
+  pid,
+  id,
+  meId,
+  onBack,
+  backLabel = "All evidence",
+}: {
+  pid: number;
+  id: number;
+  meId: number | null;
+  onBack: () => void;
+  backLabel?: string;
+}) {
   const [data, setData] = useState<{ message: Msg; before: Msg[]; after: Msg[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -77,7 +89,7 @@ function Context({ pid, id, meId, onBack }: { pid: number; id: number; meId: num
     <div>
       <div className="bg-night sticky -top-6 z-10 -mx-5 px-5 pt-6 pb-3">
         <button onClick={onBack} className="text-cream-2 hover:text-cream inline-flex items-center gap-1.5 text-sm font-semibold">
-          <ArrowLeft aria-hidden className="size-4" /> All evidence
+          <ArrowLeft aria-hidden className="size-4" /> {backLabel}
         </button>
       </div>
       {error && <p className="text-alarm mt-4 text-sm">{error}</p>}

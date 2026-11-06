@@ -129,6 +129,62 @@ export interface ChatStats {
   awards: Award[];
 }
 
+export interface MemoryEvent {
+  title: string;
+  detail: string;
+  people: string[];
+  message_ids: number[];
+  date: string;
+  month: string;
+}
+
+export interface InsideJoke {
+  phrase: string;
+  meaning: string;
+  started_by: string;
+  started_by_id: number;
+  first_message_id: number;
+  first_date: string;
+  uses: number;
+  people: number;
+  example_ids: number[];
+}
+
+/** GET /projects/{pid}/chats/{cid}/memory */
+export interface ChatMemory {
+  chat_id: number;
+  months: number;
+  timeline: MemoryEvent[];
+  topics: { topic: string; months: string[] }[];
+  mood: { month: string; mood: number; reason: string; messages: number; message_ids: number[] }[];
+  inside_jokes: InsideJoke[];
+  dynamics: {
+    overview: string;
+    patterns: string[];
+    roles: { name: string; role: string }[];
+    relationships: { people: string[]; description: string; message_ids: number[] }[];
+  } | null;
+}
+
+/** GET /projects/{pid}/chats/{cid}/graph */
+export interface ReplyGraph {
+  nodes: { id: number; name: string; is_me: boolean; messages: number }[];
+  edges: { source: number; target: number; replies: number; mentions: number; weight: number }[];
+  power_couple: { participant_ids: number[]; interactions: number } | null;
+}
+
+export interface Persona {
+  participant_id: number;
+  name: string;
+  summary: string;
+  communication_style: string;
+  interests: string[];
+  humour: string;
+  group_role: string;
+  catchphrases: { phrase: string; uses: number }[];
+  example_message_ids: number[];
+}
+
 export interface Health {
   status: string;
   models_available: number;

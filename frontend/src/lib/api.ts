@@ -1,5 +1,16 @@
 import type { Msg, ThreadSummary, turnsFromThread } from "./agent";
-import type { Chat, ChatStats, Health, Job, Participant, Project, ProjectDetail } from "./types";
+import type {
+  Chat,
+  ChatMemory,
+  ChatStats,
+  Health,
+  Job,
+  Participant,
+  Persona,
+  Project,
+  ProjectDetail,
+  ReplyGraph,
+} from "./types";
 
 // Set NEXT_PUBLIC_API_URL at build time for deployment (the Render URL). Inlined into the bundle.
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
@@ -56,6 +67,10 @@ export const api = {
   message: (pid: number, mid: number, context = 5) =>
     request<{ message: Msg; before: Msg[]; after: Msg[] }>(`/projects/${pid}/messages/${mid}?context=${context}`),
   mediaUrl: (pid: number, mediaId: number) => `${API_URL}/projects/${pid}/media/${mediaId}`,
+  memory: (pid: number, cid: number) => request<ChatMemory>(`/projects/${pid}/chats/${cid}/memory`),
+  graph: (pid: number, cid: number) => request<ReplyGraph>(`/projects/${pid}/chats/${cid}/graph`),
+  persona: (pid: number, partId: number, cid?: number) =>
+    request<Persona>(`/projects/${pid}/participants/${partId}/persona${cid ? `?chat_id=${cid}` : ""}`),
   threads: (pid: number) => request<ThreadSummary[]>(`/projects/${pid}/threads`),
   thread: (pid: number, tid: number) =>
     request<ThreadSummary & { messages: Parameters<typeof turnsFromThread>[1] }>(`/projects/${pid}/threads/${tid}`),
