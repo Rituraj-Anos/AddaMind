@@ -1,0 +1,9 @@
+requests>=2.32
+python-dotenv>=1.0
+pydantic>=2.7
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9  # file uploads (POST /documents)
+pypdf>=5.0  # PDF text extraction
+tzdata  # timezone data on Windows
+streamlit>=1.40  # legacy UI (app.py); remove once the Next.js front end replaces it
