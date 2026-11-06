@@ -17,10 +17,12 @@ import threading
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable
 
 import requests
 
 from backend.core.config import env_int, env_str
+from backend.core.keys import request_with_keys
 
 from . import db, retrieval
 
@@ -82,11 +84,12 @@ _GEMINI = _Limiter(env_int("GEMINI_MEDIA_RPM", 12))
 _RETRY_DELAY = re.compile(r'"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"')
 
 
-def _post(limiter: _Limiter, url: str, **kw) -> dict:
+def _post(limiter: _Limiter, url: str, key_env: str, headers: Callable[[str], dict], **kw) -> dict:
+    """POST with the first usable API key (see core/keys.py). Only when every key is rate limited does it wait."""
     for attempt in range(4):
         limiter.wait()
         try:
-            r = requests.post(url, timeout=(5, 90), **kw)
+            r = request_with_keys(key_env, lambda key: requests.post(url, headers=headers(key), timeout=(5, 90), **kw))
         except requests.RequestException as e:
             raise MediaError(type(e).__name__, retry=True) from None
         if r.status_code == 429 and attempt < 3:
@@ -107,8 +110,8 @@ def _gemini(data: bytes, mime: str, prompt: str) -> str:
     body = {"contents": [{"parts": [{"inlineData": {"mimeType": mime, "data": base64.b64encode(data).decode()}},
                                     {"text": prompt}]}],
             "generationConfig": {"temperature": 0.2}}
-    j = _post(_GEMINI, f"{GEMINI_URL}/{VISION_MODEL}:generateContent",
-              headers={"x-goog-api-key": env_str("GEMINI_API_KEY")}, json=body)
+    j = _post(_GEMINI, f"{GEMINI_URL}/{VISION_MODEL}:generateContent", "GEMINI_API_KEY",
+              lambda key: {"x-goog-api-key": key}, json=body)
     parts = (((j.get("candidates") or [{}])[0].get("content")) or {}).get("parts") or []
     text = "".join(p.get("text", "") for p in parts if not p.get("thought")).strip()
     if not text:
@@ -117,8 +120,8 @@ def _gemini(data: bytes, mime: str, prompt: str) -> str:
 
 
 def _whisper(data: bytes, filename: str, prompt: str) -> str:
-    j = _post(_GROQ, "https://api.groq.com/openai/v1/audio/transcriptions",
-              headers={"Authorization": f"Bearer {env_str('GROQ_API_KEY')}"},
+    j = _post(_GROQ, "https://api.groq.com/openai/v1/audio/transcriptions", "GROQ_API_KEY",
+              lambda key: {"Authorization": f"Bearer {key}"},
               files={"file": (filename, data)},
               data={"model": WHISPER_MODEL, "response_format": "json", "temperature": "0", "prompt": prompt})
     return (j.get("text") or "").strip()

@@ -15,6 +15,7 @@ import time
 from typing import Callable
 
 from ..config import CACHE_DIR, env_float, env_int, env_str
+from ..keys import env_keys
 from .base import Provider
 from .errors import AllModelsFailed, LLMError
 from .gemini import GeminiProvider
@@ -38,22 +39,24 @@ def estimate_tokens(messages: list[Message], tools: list[ToolSpec] | None) -> in
     return chars // 4
 
 
-def build_provider(spec: str) -> Provider:
-    """'provider:model' -> Provider. Model ids may contain ':' or '/'."""
+def build_provider(spec: str, key_index: int = 0) -> Provider:
+    """'provider:model' -> Provider using the key_index-th configured key. Model ids may contain ':' or '/'."""
     name, _, model = spec.strip().partition(":")
     timeout = env_float("LLM_TIMEOUT_S", 30)
     if name == "gemini":
-        return GeminiProvider(model, key_env="GEMINI_API_KEY", timeout_s=timeout)
+        return GeminiProvider(model, key_env="GEMINI_API_KEY", timeout_s=timeout, key_index=key_index)
     if name == "groq":
         return OpenAICompatProvider("groq", "https://api.groq.com/openai/v1", model,
-                                    key_env="GROQ_API_KEY", timeout_s=timeout,
+                                    key_env="GROQ_API_KEY", timeout_s=timeout, key_index=key_index,
                                     max_prompt_tokens=env_int("GROQ_MAX_PROMPT_TOKENS", 6000))
     if name == "nvidia":
         return OpenAICompatProvider("nvidia", "https://integrate.api.nvidia.com/v1", model,
-                                    key_env="NVIDIA_API_KEY", timeout_s=env_float("NVIDIA_TIMEOUT_S", 60))
+                                    key_env="NVIDIA_API_KEY", timeout_s=env_float("NVIDIA_TIMEOUT_S", 60),
+                                    key_index=key_index)
     if name == "openrouter":
         return OpenAICompatProvider("openrouter", "https://openrouter.ai/api/v1", model,
                                     key_env="OPENROUTER_API_KEY", timeout_s=env_float("OPENROUTER_TIMEOUT_S", 45),
+                                    key_index=key_index,
                                     extra_headers={"HTTP-Referer": env_str("OPENROUTER_REFERER",
                                                                            "https://github.com/hackathon-agent"),
                                                    "X-Title": env_str("OPENROUTER_TITLE", "hackathon-agent")})
@@ -61,6 +64,18 @@ def build_provider(spec: str) -> Provider:
         return OpenAICompatProvider("ollama", env_str("OLLAMA_BASE_URL", "http://localhost:11434/v1"), model,
                                     key_env=None, timeout_s=env_float("OLLAMA_TIMEOUT_S", 120))
     raise ValueError(f"Unknown provider '{name}' in LLM_CHAIN entry '{spec}'")
+
+
+def build_providers(spec: str) -> list[Provider]:
+    """One provider per configured key. A rate-limited key moves on to the next key of the same model before
+    the router tries a different model."""
+    first = build_provider(spec)
+    n = len(env_keys(first.key_env)) if first.key_env else 0
+    return [first] + [build_provider(spec, i) for i in range(1, n)]
+
+
+def build_chain(chain: str) -> list[Provider]:
+    return [p for spec in chain.split(",") if spec.strip() for p in build_providers(spec)]
 
 
 class LLMRouter:
@@ -71,7 +86,7 @@ class LLMRouter:
         self.rounds = rounds
         self.persist = persist
         self._lock = threading.Lock()
-        self._dead_providers: set[str] = set()  # auth failures, in-memory only
+        self._rejected_keys: set[tuple[str, int]] = set()  # (provider, key position) the provider refused, in-memory only
         self._state = {"sticky": None, "sticky_at": 0.0, "cooldown": {}, "failures": {}}
         self._load()
 
@@ -103,7 +118,7 @@ class LLMRouter:
             n = s["failures"].get(p.key, 0) + 1
             s["failures"][p.key] = n
             if e.kind == "auth":
-                self._dead_providers.add(p.provider)
+                self._rejected_keys.add((p.provider, p.key_index))  # this key only; other keys carry on
                 cool = 0.0
             elif e.kind == "not_found":
                 cool = 3600.0
@@ -120,18 +135,32 @@ class LLMRouter:
             self._save()
             return cool
 
+    def _usable(self, p: Provider) -> bool:
+        return p.available() and (p.provider, p.key_index) not in self._rejected_keys
+
     def _ordered(self) -> list[Provider]:
         s = self._state
-        ps = [p for p in self.providers if p.available() and p.provider not in self._dead_providers]
+        ps = [p for p in self.providers if self._usable(p)]
         if s["sticky"] and time.time() - s["sticky_at"] < self.sticky_ttl_s:
             ps.sort(key=lambda p: p.key != s["sticky"])  # stable: sticky first, rest keep order
         return ps
 
     def status(self) -> dict:
         now = time.time()
+        per_provider: dict[str, dict] = {}
+        for p in self.providers:
+            if not p.key_env:
+                continue
+            entry = per_provider.setdefault(p.provider, {"keys": set(), "rejected": set()})
+            if p.available():
+                entry["keys"].add(p.key_index)
+            if (p.provider, p.key_index) in self._rejected_keys:
+                entry["rejected"].add(p.key_index)
         return {
             "sticky": self._state["sticky"],
-            "chain": [{"key": p.key, "available": p.available() and p.provider not in self._dead_providers,
+            # Counts only: key values never leave the process.
+            "keys": {name: {"configured": len(e["keys"]), "rejected": len(e["rejected"])} for name, e in per_provider.items()},
+            "chain": [{"key": p.key, "available": self._usable(p),
                        "cooldown_s": max(0, int(self._state["cooldown"].get(p.key, 0) - now))}
                       for p in self.providers],
         }
@@ -195,7 +224,6 @@ def get_router() -> LLMRouter:
     """Process-wide router built from LLM_CHAIN."""
     global _router
     if _router is None:
-        chain = env_str("LLM_CHAIN") or DEFAULT_CHAIN
-        _router = LLMRouter([build_provider(s) for s in chain.split(",") if s.strip()],
+        _router = LLMRouter(build_chain(env_str("LLM_CHAIN") or DEFAULT_CHAIN),
                             sticky_ttl_s=env_float("LLM_STICKY_TTL_S", 900))
     return _router

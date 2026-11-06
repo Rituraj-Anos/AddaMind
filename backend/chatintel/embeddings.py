@@ -13,6 +13,7 @@ import numpy as np
 import requests
 
 from backend.core.config import env_str
+from backend.core.keys import request_with_keys
 
 from . import db
 
@@ -38,19 +39,20 @@ def _gemini(texts: list[str], query: bool) -> list[list[float]]:
     task = "RETRIEVAL_QUERY" if query else "RETRIEVAL_DOCUMENT"
     body = {"requests": [{"model": f"models/{GEMINI}", "content": {"parts": [{"text": t}]}, "taskType": task,
                           "outputDimensionality": 768} for t in texts]}
-    # No wait on 429: the free tier allows about one batch a minute, and NVIDIA answers at once.
-    r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI}:batchEmbedContents",
-                      headers={"x-goog-api-key": env_str("GEMINI_API_KEY")}, json=body, timeout=(5, 60))
+    # No wait on 429: another key takes over, or the next embedding model answers at once.
+    r = request_with_keys("GEMINI_API_KEY", lambda key: requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI}:batchEmbedContents",
+        headers={"x-goog-api-key": key}, json=body, timeout=(5, 60)))
     if not r.ok:
         raise EmbeddingError(f"gemini {r.status_code}")
     return [e["values"] for e in r.json()["embeddings"]]
 
 
 def _nvidia(texts: list[str], query: bool) -> list[list[float]]:
-    r = requests.post("https://integrate.api.nvidia.com/v1/embeddings",
-                      headers={"Authorization": f"Bearer {env_str('NVIDIA_API_KEY')}"},
-                      json={"model": NVIDIA, "input": texts, "input_type": "query" if query else "passage",
-                            "encoding_format": "float", "truncate": "END"}, timeout=(5, 60))
+    r = request_with_keys("NVIDIA_API_KEY", lambda key: requests.post(
+        "https://integrate.api.nvidia.com/v1/embeddings", headers={"Authorization": f"Bearer {key}"},
+        json={"model": NVIDIA, "input": texts, "input_type": "query" if query else "passage",
+              "encoding_format": "float", "truncate": "END"}, timeout=(5, 60)))
     if not r.ok:
         raise EmbeddingError(f"nvidia {r.status_code}")
     return [d["embedding"] for d in sorted(r.json()["data"], key=lambda d: d["index"])]

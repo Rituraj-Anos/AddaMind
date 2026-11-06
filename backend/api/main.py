@@ -28,6 +28,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend import profile
+from backend.core import keys as api_keys
 from backend.core.agent import Agent
 from backend.core.config import env_str
 from backend.core.documents import ALLOWED, MAX_BYTES, get_store
@@ -82,7 +83,9 @@ class ChatRequest(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok", "agent": profile.NAME,
-            "models_available": sum(1 for m in get_router().status()["chain"] if m["available"])}
+            "models_available": sum(1 for m in get_router().status()["chain"] if m["available"]),
+            # How many API keys each provider has, ready or resting or refused. Never the keys themselves.
+            "keys": {name: api_keys.status(f"{name.upper()}_API_KEY") for name in ("gemini", "groq", "nvidia", "openrouter")}}
 
 
 @app.get("/profile")

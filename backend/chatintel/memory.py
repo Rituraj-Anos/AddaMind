@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from backend.core.config import env_str
 from backend.core.llm import LLMRouter
-from backend.core.llm.router import build_provider
+from backend.core.llm.router import build_chain
 from backend.core.structured import structured
 
 from . import analytics, db
@@ -54,7 +54,7 @@ def router() -> LLMRouter:
     global _router
     if _router is None:
         chain = env_str("ADDAMIND_MEMORY_CHAIN") or DEFAULT_CHAIN
-        _router = LLMRouter([build_provider(s) for s in chain.split(",") if s.strip()], persist=False)
+        _router = LLMRouter(build_chain(chain), persist=False)
     return _router
 
 

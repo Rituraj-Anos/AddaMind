@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import time
 from abc import ABC, abstractmethod
@@ -10,6 +9,7 @@ from typing import Callable, Iterator
 
 import requests
 
+from ..keys import env_keys
 from .errors import LLMError, kind_from_status
 from .types import LLMResponse, Message, ToolSpec
 
@@ -22,21 +22,25 @@ class Provider(ABC):
     provider: str = ""
 
     def __init__(self, model: str, *, key_env: str | None, timeout_s: float,
-                 max_prompt_tokens: int | None = None):
+                 max_prompt_tokens: int | None = None, key_index: int = 0):
         self.model = model
         self.key_env = key_env
         self.timeout_s = timeout_s
         self.max_prompt_tokens = max_prompt_tokens
+        self.key_index = key_index  # which of the configured API keys this instance uses
 
     @property
     def key(self) -> str:
-        return f"{self.provider}:{self.model}"
+        """Identity for cooldowns and the sticky model. The first key keeps the plain name; later keys add #2, #3..."""
+        suffix = f"#{self.key_index + 1}" if self.key_index else ""
+        return f"{self.provider}:{self.model}{suffix}"
 
     def available(self) -> bool:
-        return self.key_env is None or bool(os.getenv(self.key_env))
+        return self.key_env is None or bool(self._api_key())
 
     def _api_key(self) -> str:
-        return os.getenv(self.key_env or "", "")
+        keys = env_keys(self.key_env) if self.key_env else []
+        return keys[self.key_index] if self.key_index < len(keys) else ""
 
     def _err(self, kind: str, msg: str, **kw) -> LLMError:
         return LLMError(kind, msg, provider=self.provider, model=self.model, **kw)

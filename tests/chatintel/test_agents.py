@@ -256,7 +256,7 @@ def test_tts_wraps_pcm_caches_and_reports_failure(project, monkeypatch):
     assert len(calls) == 1  # second time from the disk cache
 
     class Bad:
-        ok, status_code = False, 429
+        ok, status_code, headers, text = False, 429, {}, ""
 
     monkeypatch.setattr(voice.requests, "post", lambda *a, **k: Bad())
     assert c.post(f"/projects/{pid}/tts", json={"text": "something new"}).status_code == 502

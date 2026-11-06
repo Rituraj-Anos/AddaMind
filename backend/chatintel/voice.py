@@ -10,6 +10,7 @@ import struct
 import requests
 
 from backend.core.config import env_str
+from backend.core.keys import request_with_keys
 
 from . import db
 
@@ -36,13 +37,13 @@ def speak(text: str) -> bytes:
     if path.exists():
         return path.read_bytes()
     try:
-        r = requests.post(
+        r = request_with_keys("GEMINI_API_KEY", lambda key: requests.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent",
-            headers={"x-goog-api-key": env_str("GEMINI_API_KEY")},
+            headers={"x-goog-api-key": key},
             json={"contents": [{"parts": [{"text": f"Say this playfully, like a friend roasting a friend: {text}"}]}],
                   "generationConfig": {"responseModalities": ["AUDIO"],
                                        "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": VOICE}}}}},
-            timeout=(5, 45))
+            timeout=(5, 45)))
     except requests.RequestException as e:
         raise VoiceError(type(e).__name__) from None
     if not r.ok:

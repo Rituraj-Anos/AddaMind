@@ -10,7 +10,7 @@ import sys
 import time
 
 from backend.core.config import env_str
-from backend.core.llm import LLMError, Message, ToolSpec, build_provider
+from backend.core.llm import LLMError, Message, ToolSpec, build_chain
 from backend.core.llm.router import DEFAULT_CHAIN
 
 WEATHER = ToolSpec("get_weather", "Get current weather for a city",
@@ -54,7 +54,7 @@ def run(label, fn):
 
 
 def main():
-    chain = [build_provider(s) for s in (env_str("LLM_CHAIN") or DEFAULT_CHAIN).split(",") if s.strip()]
+    chain = build_chain(env_str("LLM_CHAIN") or DEFAULT_CHAIN)  # one entry per model and API key
     for p in chain:
         print(p.key, "" if p.available() else "(no API key, skipped)", flush=True)
         if p.available():

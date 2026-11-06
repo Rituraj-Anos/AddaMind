@@ -91,6 +91,15 @@ npm run dev
 
 Loading the full demo takes about ten minutes, mostly media analysis within free-tier rate limits.
 
+### More than one API key
+
+Each provider can have several keys (`GEMINI_API_KEYS=a,b,c`, same for `GROQ_API_KEYS`, `NVIDIA_API_KEYS` and
+`OPENROUTER_API_KEYS`). The router tries every key of a model before it moves to the next model, rests a rate-limited key
+for a minute (or the time the provider asks for), and drops a key the provider refuses. Voice notes, photo descriptions,
+embeddings and spoken roasts rotate keys the same way (`backend/core/keys.py`). `GET /health` reports how many keys each
+provider has and how many are ready, resting or refused, never the keys themselves. Check the provider's terms before
+using keys from several accounts.
+
 ## Checks
 
 ```powershell
