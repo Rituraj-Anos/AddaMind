@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest>=8
+httpx>=0.27  # FastAPI's TestClient
+pillow>=10  # scripts/make_demo_data.py: images and stickers
+imageio-ffmpeg>=0.5  # scripts/make_demo_data.py: voice notes and videos

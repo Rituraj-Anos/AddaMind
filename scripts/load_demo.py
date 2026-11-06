@@ -33,4 +33,7 @@ def main(reset: bool) -> None:
 
 
 if __name__ == "__main__":
+    extra = [a for a in sys.argv[1:] if a != "--reset"]
+    if extra:
+        sys.exit(__doc__.strip())
     main("--reset" in sys.argv)
