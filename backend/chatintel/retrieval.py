@@ -45,12 +45,7 @@ def _line(r) -> str:
     if r["kind"] == "system":
         return f"(group event) {r['text']}"
     who = db.shown_name(r["sender"], r["masked"]) or "?"
-    body = r["text"] or ""
-    if r["kind"] not in ("text", "deleted"):
-        body = f"[{r['kind']}] {body}".strip()
-    if r["media_result"]:
-        body = f"{body} ({r['media_result']})"
-    return f"{who}: {body}"
+    return f"{who}: {db.media_line(r['kind'], r['text'], r['media_result'])}"
 
 
 # ---------------------------------------------------------------- passages
@@ -105,6 +100,23 @@ def embed_missing(pid: int, cid: int) -> int:
         con.executemany("UPDATE passages SET model = ?, embedding = ? WHERE id = ?",
                         [(mv[0], embeddings.to_blob(mv[1]), r["id"]) for r, mv in zip(rows, vectors) if mv])
     return sum(1 for v in vectors if v)
+
+
+def refresh_passages(pid: int, cid: int, passage_ids: list[int]) -> int:
+    """Rebuild the text of passages whose messages changed (media results arrived), then re-embed them."""
+    with db.connect() as con:
+        for ps in passage_ids:
+            rows = con.execute(f"""
+                SELECT m.id, m.ts, m.kind, m.text, p.name AS sender, p.masked, md.result AS media_result
+                FROM messages m JOIN chats c ON c.id = m.chat_id AND c.project_id = ?
+                LEFT JOIN participants p ON p.id = m.participant_id LEFT JOIN media md ON md.message_id = m.id
+                WHERE m.passage_id = ? AND m.chat_id = ? ORDER BY m.ts, m.id""", (pid, ps, cid)).fetchall()
+            if not rows:
+                continue
+            text = "\n".join(_line(r) for r in rows)
+            con.execute("UPDATE passages SET text = ?, model = NULL, embedding = NULL WHERE id = ?", (text, ps))
+            con.execute("UPDATE passages_fts SET text = ? WHERE rowid = ?", (text, ps))
+    return embed_missing(pid, cid)
 
 
 # ---------------------------------------------------------------- search
@@ -261,7 +273,8 @@ def main(argv: list[str]) -> None:
     out = search(Scope(pid), query)
     print("methods:", ", ".join(out["methods"]))
     for r in out["results"]:
-        print(f"[[m:{r['id']}]] {r['ts']} {r['chat_title']} | {r['sender']}: {r['text'][:90]}  {r['matched_by']} {r['score']}")
+        body = db.media_line(r["kind"], r["text"], (r["media"] or {}).get("result"))
+        print(f"[[m:{r['id']}]] {r['ts']} {r['chat_title']} | {r['sender']}: {body[:110]}  {r['matched_by']} {r['score']}")
 
 
 if __name__ == "__main__":

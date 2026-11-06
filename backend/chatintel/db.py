@@ -124,16 +124,21 @@ def connect():
                 if str(path) not in _ready:
                     con.execute("PRAGMA journal_mode = WAL")
                     con.executescript(SCHEMA)
-                    # Jobs die with the process that ran them.
-                    con.execute("UPDATE jobs SET status = 'failed', error = 'interrupted by a server restart' "
-                                "WHERE status IN ('queued', 'running')")
-                    con.execute("UPDATE chats SET status = 'failed' WHERE status = 'processing'")
-                    con.commit()
                     _ready.add(str(path))
         with con:
             yield con
     finally:
         con.close()
+
+
+def recover_jobs() -> int:
+    """Jobs run in server threads and die with the server. Call once at API startup (not from CLIs,
+    which would mark a running server's jobs failed)."""
+    with connect() as con:
+        n = con.execute("UPDATE jobs SET status = 'failed', error = 'interrupted by a server restart' "
+                        "WHERE status IN ('queued', 'running')").rowcount
+        con.execute("UPDATE chats SET status = 'failed' WHERE status = 'processing'")
+    return n
 
 
 # ---------------------------------------------------------------- display helpers
@@ -152,6 +157,19 @@ def mask(name: str) -> str:
 
 def shown_name(name: str | None, masked) -> str | None:
     return mask(name) if name and masked else name
+
+
+MEDIA_LABEL = {"image": "photo", "voice": "voice note", "audio": "audio", "video": "video", "document": "document",
+               "sticker": "sticker", "gif": "GIF", "contact": "contact card", "media_omitted": "media not exported"}
+
+
+def media_line(kind: str, text: str | None, result: str | None = None) -> str:
+    """Message text with its media, as indexed and shown to agents: 'caption [voice note] "transcript"'."""
+    label = MEDIA_LABEL.get(kind)
+    if not label:
+        return text or ""
+    tail = f'[{label}] "{result}"' if result else f"[{label}]"
+    return f"{text} {tail}" if text else tail
 
 
 # ---------------------------------------------------------------- projects

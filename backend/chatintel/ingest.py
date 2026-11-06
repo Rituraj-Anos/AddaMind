@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Callable
 
-from . import db, retrieval
+from . import db, media, retrieval
 from .parser import Message, norm_name, parse_export
 
 log = logging.getLogger("addamind.ingest")
@@ -239,12 +239,20 @@ def _save_media(job: Job) -> None:
     job.info.update(media_saved=len(saved), media_missing=len(todo) - len(saved))
 
 
+def stage_media(job: Job) -> None:
+    """Describe images and videos, transcribe voice notes, read PDFs. Runs before indexing so passages
+    already carry the results."""
+    counts = media.process_chat(job.project_id, job.chat_id, job.progress)
+    job.info.update({f"media_{k}": v for k, v in counts.items()})
+
+
 def stage_index(job: Job) -> None:
     """Passages for the new messages, with embeddings (keyword search still works if those fail)."""
     job.info.update(retrieval.build_passages(job.project_id, job.chat_id, job.progress))
 
 
-STAGES: list[tuple[str, Callable[[Job], None]]] = [("parse", stage_parse), ("index", stage_index)]
+STAGES: list[tuple[str, Callable[[Job], None]]] = [("parse", stage_parse), ("media", stage_media),
+                                                   ("index", stage_index)]
 
 
 def run_job(pid: int, job_id: int) -> None:
@@ -262,7 +270,7 @@ def run_job(pid: int, job_id: int) -> None:
             fn(job)
         with db.connect() as con:
             con.execute("UPDATE chats SET status = 'ready' WHERE id = ?", (job.chat_id,))
-        _update(job_id, status="done", stage="done", info=job.info)
+        _update(job_id, status="done", stage="done", error=None, info=job.info)
     except Exception as e:  # noqa: BLE001 - every failure must end the job, not the server
         msg = str(e) if isinstance(e, ValueError) else f"processing failed ({type(e).__name__})"
         log.error("job %s failed: %s\n%s", job_id, type(e).__name__, "".join(traceback.format_tb(e.__traceback__)))

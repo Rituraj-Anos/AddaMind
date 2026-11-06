@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,11 +34,18 @@ from backend.core.documents import ALLOWED, MAX_BYTES, get_store
 from backend.core.llm import get_router
 from backend.core.tools import registry
 
+from backend.chatintel import db as chatintel_db
 from backend.chatintel.api import router as chatintel_router
 
 from .store import ID_PATTERN, ConversationStore, to_display
 
-app = FastAPI(title=f"{profile.NAME} API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    chatintel_db.recover_jobs()
+    yield
+
+
+app = FastAPI(title=f"{profile.NAME} API", version="0.1.0", lifespan=lifespan)
 app.include_router(chatintel_router)
 
 # Comma-separated exact origins (set your Vercel URL here when deploying), plus a regex.

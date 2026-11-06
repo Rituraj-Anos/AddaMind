@@ -174,3 +174,13 @@ def test_api_end_to_end():
     assert c.post(f"/projects/{pid}/chats", files={"file": ("notes.pdf", b"x")}).status_code == 400
     assert c.delete(f"/projects/{pid}").status_code == 200
     assert c.get(f"/projects/{pid}").status_code == 404
+
+
+def test_only_startup_recovery_fails_running_jobs():
+    pid = db.create_project("Suman")["id"]
+    job_id = ingest.create_job(pid, "x.txt")
+    ingest._update(job_id, status="running")
+    db._ready.clear()  # a second process opening the database must not touch running jobs
+    assert db.get_job(pid, job_id)["status"] == "running"
+    assert db.recover_jobs() == 1
+    assert db.get_job(pid, job_id)["status"] == "failed"
