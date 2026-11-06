@@ -1,24 +1,52 @@
 import ReactMarkdown from "react-markdown";
-import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
 
-/** Some models write LaTeX as \( \) and \[ \]; remark-math only reads $ and $$. */
-function normalizeMath(text: string): string {
-  return text
-    .replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => `$$${m}$$`)
-    .replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => `$${m}$`);
-}
+const CITE = /\[\[m:(\d+)\]\]/g;
 
-export function Markdown({ text }: { text: string }) {
+/** Agent answers in markdown, with [[m:ID]] citations drawn as numbered chips that open the message.
+ * Numbers follow the order each message is first cited. `verified` is the set the server checked;
+ * while the answer is still streaming nothing is verified yet, so chips show as pending. */
+export function Markdown({
+  text,
+  onCite,
+  verified,
+  active,
+}: {
+  text: string;
+  onCite?: (id: number) => void;
+  verified?: Set<number>;
+  active?: number | null;
+}) {
+  const order: number[] = [];
+  const prepared = text.replace(CITE, (_, id: string) => {
+    const n = Number(id);
+    if (!order.includes(n)) order.push(n);
+    return ` [${order.indexOf(n) + 1}](#m-${n})`;
+  });
   return (
-    <div className="report-prose">
+    <div className="answer">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
-        components={{ a: (props) => <a {...props} target="_blank" rel="noreferrer noopener" /> }}
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ href, children }) => {
+            const m = href?.match(/^#m-(\d+)$/);
+            if (!m) return <a href={href} target="_blank" rel="noreferrer noopener">{children}</a>;
+            const id = Number(m[1]);
+            const ok = !verified || verified.has(id);
+            return (
+              <button
+                type="button"
+                onClick={() => onCite?.(id)}
+                aria-label={`Open cited message ${children}`}
+                className={`cite tabular ${ok ? "" : "cite-pending"} ${active === id ? "cite-on" : ""}`}
+              >
+                {children}
+              </button>
+            );
+          },
+        }}
       >
-        {normalizeMath(text)}
+        {prepared}
       </ReactMarkdown>
     </div>
   );

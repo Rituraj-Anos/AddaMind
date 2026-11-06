@@ -107,8 +107,9 @@ class Agent:
                 emit({"type": "tool_call", "id": tc.id, "name": tc.name, "args": tc.args})
                 ok, result, ms = self.tools.execute(tc.name, tc.args, cfg.tools)
                 text = result_to_text(result)
+                # The UI draws results (bars, lists), so it gets the object whole unless it's huge.
                 emit({"type": "tool_result", "id": tc.id, "name": tc.name, "ok": ok,
-                      "duration_ms": ms, "result": result if len(text) < 4000 else text[:4000]})
+                      "duration_ms": ms, "result": result if len(text) < 16000 else text[:16000]})
                 new.append(Message("tool", text, tool_call_id=tc.id, name=tc.name))
         raise RuntimeError("unreachable: last step runs without tools")
 

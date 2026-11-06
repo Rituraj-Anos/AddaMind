@@ -1,3 +1,4 @@
+import type { Msg, ThreadSummary, turnsFromThread } from "./agent";
 import type { Chat, ChatStats, Health, Job, Participant, Project, ProjectDetail } from "./types";
 
 // Set NEXT_PUBLIC_API_URL at build time for deployment (the Render URL). Inlined into the bundle.
@@ -52,6 +53,13 @@ export const api = {
   project: (pid: number) => request<ProjectDetail>(`/projects/${pid}`),
   renameProject: (pid: number, name: string) => request<Project>(`/projects/${pid}`, json("PATCH", { name })),
   chatStats: (pid: number, cid: number) => request<ChatStats>(`/projects/${pid}/chats/${cid}/stats`),
+  message: (pid: number, mid: number, context = 5) =>
+    request<{ message: Msg; before: Msg[]; after: Msg[] }>(`/projects/${pid}/messages/${mid}?context=${context}`),
+  mediaUrl: (pid: number, mediaId: number) => `${API_URL}/projects/${pid}/media/${mediaId}`,
+  threads: (pid: number) => request<ThreadSummary[]>(`/projects/${pid}/threads`),
+  thread: (pid: number, tid: number) =>
+    request<ThreadSummary & { messages: Parameters<typeof turnsFromThread>[1] }>(`/projects/${pid}/threads/${tid}`),
+  deleteThread: (pid: number, tid: number) => request<{ deleted: number }>(`/projects/${pid}/threads/${tid}`, { method: "DELETE" }),
   deleteProject: (pid: number) => request<{ deleted: number }>(`/projects/${pid}`, { method: "DELETE" }),
   deleteChat: (pid: number, cid: number) =>
     request<{ deleted: number }>(`/projects/${pid}/chats/${cid}`, { method: "DELETE" }),

@@ -12,19 +12,23 @@ export function Marquee({
   items,
   tone = "lime",
   seconds = 36,
+  size = 22,
 }: {
   items: string[];
-  tone?: "lime" | "pink" | "cream";
+  tone?: "lime" | "pink" | "cream" | "ice";
   seconds?: number;
+  size?: number;
 }) {
-  const band = { lime: "bg-lime", pink: "bg-pink", cream: "bg-cream" }[tone];
+  const band = { lime: "bg-lime", pink: "bg-pink", cream: "bg-cream", ice: "bg-ice" }[tone];
   // Enough copies that one half is wider than the viewport, then two halves for a seamless loop.
   const half = Array.from({ length: Math.max(2, Math.ceil(10 / Math.max(items.length, 1))) }, () => items).flat();
   const run = (key: string) => (
     <div key={key} className="flex shrink-0 items-center text-night">
       {half.map((t, i) => (
         <span key={i} className="flex items-center">
-          <span className="display px-5 text-[22px] leading-none">{t}</span>
+          <span className="display px-5 leading-none" style={{ fontSize: size }}>
+            {t}
+          </span>
           <Spark />
         </span>
       ))}
