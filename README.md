@@ -1,10 +1,58 @@
-# AddaMind
+﻿<p align="center">
+  <img src="assets/banner.png" alt="AddaMind: every adda, remembered" width="100%">
+</p>
 
-Every adda, remembered. AddaMind reads WhatsApp chat exports and lets four agents answer questions about them. Every answer
-links to the messages it came from.
+<p align="center">
+  <b>Four agents that read your WhatsApp chats and answer with receipts.</b><br>
+  Every claim links back to the message it came from.
+</p>
+
+<p align="center">
+  <img alt="Python 3.13" src="https://img.shields.io/badge/python-3.13-111111?style=flat-square&labelColor=111111&color=C6F432">
+  <img alt="Next.js 16" src="https://img.shields.io/badge/next.js-16-111111?style=flat-square&labelColor=111111&color=F3EFE6">
+  <img alt="FastAPI" src="https://img.shields.io/badge/fastapi-sqlite-111111?style=flat-square&labelColor=111111&color=FF4F9C">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-86%20passing-111111?style=flat-square&labelColor=111111&color=C6F432">
+</p>
+
+<p align="center">
+  <img src="assets/screens/landing.png" alt="AddaMind landing page" width="88%">
+</p>
 
 Built for Agentic Chase, Mission 04 (Multi-Agent Chat Intelligence Platform).
 
+## See it work
+
+| | |
+|---|---|
+| ![First read of a chat](assets/screens/first-read.png) | ![Agent work live on screen](assets/screens/on-air.png) |
+| **First read.** Drop an export and get a read of the chat before you ask anything. | **On air.** Tool calls stream in as the agent works. |
+| ![Answer with citations](assets/screens/ask-answer.png) | ![Evidence for a citation](assets/screens/ask-citation.png) |
+| **Answers with receipts.** Every `[m:ID]` opens the original message. | **Evidence panel.** The message, the context around it, the date. |
+| ![Roast card](assets/screens/roast.png) | ![Mood timeline](assets/screens/insights-mood.png) |
+| **Roaster.** Wholesome, spicy or savage, and it can read aloud. | **Mood timeline.** Events pinned to the highs and dips. |
+| ![Reply graph](assets/screens/insights-graph.png) | ![Inside jokes](assets/screens/insights-jokes.png) |
+| **Who replies to whom.** Built from counts, not guesses. | **Inside jokes.** Kept only if the database confirms them. |
+
+<table>
+  <tr>
+    <td><img src="assets/screens/wrapped-cover.png" alt="Wrapped cover"></td>
+    <td><img src="assets/screens/wrapped-moods.png" alt="Wrapped moods"></td>
+    <td><img src="assets/screens/wrapped-awards.png" alt="Wrapped awards"></td>
+    <td><img src="assets/screens/mobile-roast.png" alt="Roast on mobile"></td>
+  </tr>
+</table>
+
+<p align="center"><sub>Group Wrapped, and the same app on a phone.</sub></p>
+
+## Try these questions
+
+On the demo data:
+
+- Who started most of the conversations?
+- Who backed out of the Goa trip?
+- When did the group's mood dip, and why?
+- Roast Aditya for going silent. Savage.
+- Give me replies to "kab aa rahe ho?" in my style.
 ## What it does
 
 - **Projects** hold any number of group and one-to-one chats. Upload the `.zip` (with media) or `.txt` that WhatsApp's
@@ -37,17 +85,29 @@ Built for Agentic Chase, Mission 04 (Multi-Agent Chat Intelligence Platform).
 
 ## Architecture
 
+```mermaid
+flowchart LR
+  U["Browser (Next.js 16)"] -- "REST + SSE" --> A["FastAPI"]
+  A --> AG["Agents (4)"]
+  AG --> T["Tools (11, scoped by project)"]
+  T --> DB[("SQLite + FTS5")]
+  T --> R["Retrieval: keyword + embeddings"]
+  AG --> L["LLM router"]
+  L --> P["Groq / Gemini / NVIDIA / OpenRouter"]
+  A --> I["Upload job"]
+  I --> PA["Parser"] --> M["Media: vision, Whisper, PDF"] --> MEM["Memory + personas"] --> DB
 ```
-frontend/ (Next.js 16)         backend/ (FastAPI, SQLite)
-  /            landing           chatintel/api.py        routes, all under /projects/{pid}
-  /studio      projects          chatintel/ingest.py     upload job: parse, media, index, memory, personas
-  /studio/[pid]          ──SSE──▶ chatintel/parser.py     Android and iOS exports
-  /studio/[pid]/ask               chatintel/media.py      vision, video, Whisper, PDF
-  /studio/[pid]/insights          chatintel/retrieval.py  FTS5 keyword + embedding search, merged by rank
-  /studio/[pid]/wrapped           chatintel/memory.py     monthly summaries, timeline, jokes
-                                  chatintel/personas.py
-                                  chatintel/agents.py     four agents on core/agent.py
-                                  core/llm/               provider router with fallback and cooldowns
+
+Where things live:
+
+```
+frontend/                      Next.js: landing, studio, Ask, Insights, Wrapped
+backend/api/                   app entry
+backend/chatintel/             parser, ingest, analytics, retrieval, media, memory,
+                               personas, tools, agents, safety, voice, api
+backend/core/                  agent loop, structured output, key rotation, llm/ router
+scripts/                       make_demo_data, load_demo, eval_scenario
+tests/
 ```
 
 Upload progress and agent runs stream to the browser as Server-Sent Events. Everything is stored in one SQLite file
