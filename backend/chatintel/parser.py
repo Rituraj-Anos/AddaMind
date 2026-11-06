@@ -12,6 +12,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import PurePosixPath
+from typing import BinaryIO
 
 MAX_TXT_BYTES = 200 * 1024 * 1024
 
@@ -270,10 +271,12 @@ def decode(data: bytes) -> str:
         return data.decode("cp1252", errors="replace")
 
 
-def read_export(data: bytes, filename: str) -> Export:
+def read_export(data: bytes | BinaryIO, filename: str) -> Export:
     """Find the chat text (and the media list) in a .txt or .zip export. Does not extract media."""
-    buf = io.BytesIO(data)
+    buf = io.BytesIO(data) if isinstance(data, bytes) else data
     if not zipfile.is_zipfile(buf):
+        buf.seek(0)
+        data = buf.read(MAX_TXT_BYTES + 1)
         if len(data) > MAX_TXT_BYTES:
             raise ValueError("chat text is too large")
         return Export(decode(data), title_from_filename(filename), {}, filename)
@@ -296,7 +299,7 @@ def read_export(data: bytes, filename: str) -> Export:
     return Export(text, hint, media, filename)
 
 
-def parse_export(data: bytes, filename: str) -> tuple[ParsedChat, Export]:
+def parse_export(data: bytes | BinaryIO, filename: str) -> tuple[ParsedChat, Export]:
     export = read_export(data, filename)
     return parse_text(export.text, export.title_hint), export
 
