@@ -29,13 +29,23 @@ function StartDrop() {
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [opened, setOpened] = useState<{ id: number; name: string } | null>(null);
+  const [slow, setSlow] = useState(false);
+
+  // If the page hasn't moved on a few seconds after the project was made, offer the way in by hand.
+  useEffect(() => {
+    if (!opened) return;
+    const t = setTimeout(() => setSlow(true), 4000);
+    return () => clearTimeout(t);
+  }, [opened]);
 
   async function start(files: File[]) {
     if (!files.length) return;
     setBusy(true);
     setError(null);
     try {
-      await startWithFiles(files);
+      const p = await startWithFiles(files);
+      setOpened({ id: p.id, name: p.name });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -81,6 +91,15 @@ function StartDrop() {
       {error && (
         <p role="alert" className="text-alarm mt-3 text-sm">
           {error}
+        </p>
+      )}
+      {slow && opened && (
+        <p role="status" className="text-cream-2 mt-3 text-sm">
+          Taking longer than it should.{" "}
+          <a href={`/studio/${opened.id}`} className="text-lime font-semibold underline">
+            Open {opened.name}
+          </a>{" "}
+          to see its progress.
         </p>
       )}
       <input

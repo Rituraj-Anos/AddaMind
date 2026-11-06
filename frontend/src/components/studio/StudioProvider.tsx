@@ -34,7 +34,7 @@ interface Studio {
   removeProject: (pid: number) => Promise<void>;
   removeChat: (cid: number) => Promise<void>;
   addFiles: (files: File[]) => void;
-  startWithFiles: (files: File[]) => Promise<void>;
+  startWithFiles: (files: File[]) => Promise<Project>;
   renameProject: (name: string) => Promise<void>;
   dismissUpload: (id: string) => void;
   setMe: (participantId: number) => Promise<void>;
@@ -75,6 +75,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
   const [uploads, setUploads] = useState<Upload[]>([]);
   const pidRef = useRef(pid);
   const activeRef = useRef(false);
+  const pending = useRef<{ pid: number; files: File[] } | null>(null);
 
   useEffect(() => {
     pidRef.current = pid;
@@ -194,7 +195,15 @@ export function StudioProvider({ children }: { children: ReactNode }) {
             : null;
         setUploads((u) => [...u, { id, name: file.name, size: file.size, progress: 0, error: bad ?? undefined }]);
         if (bad) continue;
-        const { promise, cancel } = uploadChat(target, file, (f) => patchUpload(id, { progress: f }));
+        // The browser can fire progress events many times a second; redraw on whole-percent steps only.
+        let shown = -1;
+        const { promise, cancel } = uploadChat(target, file, (f) => {
+          const pct = Math.floor(f * 100);
+          if (pct !== shown) {
+            shown = pct;
+            patchUpload(id, { progress: f });
+          }
+        });
         patchUpload(id, { cancel });
         promise
           .then(async () => {
@@ -218,19 +227,28 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     [uploadTo],
   );
 
-  /** First drop on the start screen: make a project named after the chat, open it, and upload into it. */
+  /** First drop on the start screen: make a project named after the chat and open it. The upload itself starts
+   * from the project page (see the effect below), so the start screen never waits on it. */
   const startWithFiles = useCallback(
     async (files: File[]) => {
       const exports = files.filter((f) => /\.(txt|zip)$/i.test(f.name));
       if (!exports.length) throw new Error("That isn't a WhatsApp export. Drop the .zip or .txt from Export chat.");
-      const name = titleFromFile(exports[0].name) ?? "My chats";
-      const p = await api.createProject(name);
-      uploadTo(p.id, exports);
-      await loadProjects();
+      const p = await api.createProject(titleFromFile(exports[0].name) ?? "My chats");
+      pending.current = { pid: p.id, files: exports };
+      void loadProjects();
       router.push(`/studio/${p.id}`);
+      return p;
     },
-    [uploadTo, loadProjects, router],
+    [loadProjects, router],
   );
+
+  useEffect(() => {
+    const job = pending.current;
+    if (job && pid === job.pid) {
+      pending.current = null;
+      uploadTo(job.pid, job.files);
+    }
+  }, [pid, uploadTo]);
 
   const renameProject = useCallback(
     async (name: string) => {
