@@ -85,6 +85,10 @@ class Agent:
             # On the last allowed step, withhold tools so the model must answer.
             resp = self.router.chat(msgs, None if last_step else specs or None,
                                     temperature=cfg.temperature, on_event=emit, on_text=on_text)
+            if last_step and resp.tool_calls:
+                # Some models still call tools when none are offered. Their calls can't run: keep the text.
+                resp.tool_calls = []
+                resp.text = resp.text or "I ran out of steps before finishing. Please ask a narrower question."
             answer = resp.to_message()
             new.append(answer)
             if not resp.tool_calls:

@@ -359,6 +359,43 @@ def merge_participants(pid: int, src: int, into: int) -> bool:
     return True
 
 
+# ---------------------------------------------------------------- agent threads
+def create_thread(pid: int, agent: str, scope_type: str, scope_id: int | None, title: str) -> int:
+    with connect() as con:
+        return con.execute("INSERT INTO threads(project_id, agent, scope_type, scope_id, title, created_at, updated_at) "
+                           "VALUES (?, ?, ?, ?, ?, ?, ?)", (pid, agent, scope_type, scope_id, title[:80], now(), now())).lastrowid
+
+
+def get_thread(pid: int, tid: int) -> dict | None:
+    with connect() as con:
+        r = con.execute("SELECT * FROM threads WHERE id = ? AND project_id = ?", (tid, pid)).fetchone()
+    return {**dict(r), "messages": json.loads(r["messages"])} if r else None
+
+
+def append_thread(pid: int, tid: int, messages: list[dict]) -> None:
+    with connect() as con:
+        r = con.execute("SELECT messages FROM threads WHERE id = ? AND project_id = ?", (tid, pid)).fetchone()
+        if r:
+            con.execute("UPDATE threads SET messages = ?, updated_at = ? WHERE id = ?",
+                        (json.dumps(json.loads(r["messages"]) + messages, ensure_ascii=False), now(), tid))
+
+
+def list_threads(pid: int, agent: str | None = None, scope_type: str | None = None, scope_id: int | None = None) -> list[dict]:
+    sql, args = "SELECT id, agent, scope_type, scope_id, title, created_at, updated_at FROM threads " \
+                "WHERE project_id = ? AND messages != '[]'", [pid]
+    for col, v in (("agent", agent), ("scope_type", scope_type), ("scope_id", scope_id)):
+        if v is not None:
+            sql += f" AND {col} = ?"
+            args.append(v)
+    with connect() as con:
+        return [dict(r) for r in con.execute(sql + " ORDER BY updated_at DESC, id DESC", args).fetchall()]
+
+
+def delete_thread(pid: int, tid: int) -> bool:
+    with connect() as con:
+        return bool(con.execute("DELETE FROM threads WHERE id = ? AND project_id = ?", (tid, pid)).rowcount)
+
+
 # ---------------------------------------------------------------- jobs
 def job_json(r) -> dict:
     d = dict(r)

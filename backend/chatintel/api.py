@@ -14,6 +14,8 @@
     GET    /projects/{pid}/messages/{mid}?context=
     GET    /projects/{pid}/search?q=&chat_id=&participant_id=&since=&until=&k=
     GET    /projects/{pid}/media/{media_id}
+    POST   /projects/{pid}/agent   {agent, message, scope_type, scope_id, thread_id?, options} -> SSE
+    GET    /projects/{pid}/threads?agent=&scope_type=&scope_id=, /threads/{tid};  DELETE /threads/{tid}
     GET    /projects/{pid}/participants
     PATCH  /projects/{pid}/participants/{part_id}     {"is_me"?, "roast_opt_out"?}
     POST   /projects/{pid}/participants/{part_id}/merge {"into"}
@@ -23,12 +25,16 @@ from __future__ import annotations
 import json
 import threading
 import time
+from typing import Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import analytics, db, ingest, memory, personas, retrieval
+from backend.api.store import to_display
+from backend.core.llm import Message
+
+from . import agents, analytics, db, ingest, memory, personas, retrieval
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -213,6 +219,91 @@ def search(pid: int, q: str = Query(min_length=1, max_length=300), chat_id: int 
     if chat_id is not None:
         _found(db.get_chat(pid, chat_id), "chat")
     return retrieval.search(retrieval.Scope(pid, chat_id, participant_id), q, k, since, until)
+
+
+# ---------------------------------------------------------------- agents and threads
+class AgentOptions(BaseModel):
+    tone: Literal["wholesome", "spicy", "savage"] | None = None
+    style_of: str | None = Field(default=None, max_length=80)
+    reply_to: int | None = None
+
+
+class AgentIn(BaseModel):
+    agent: Literal["analyzer", "roaster", "reply", "recall"]
+    message: str = Field(min_length=1, max_length=4000)
+    scope_type: Literal["project", "chat", "participant"] = "project"
+    scope_id: int | None = None
+    thread_id: int | None = None
+    options: AgentOptions = AgentOptions()
+
+
+def _sse(event: dict) -> str:
+    return f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+
+
+@router.post("/{pid}/agent")
+def agent_chat(pid: int, body: AgentIn):
+    """One agent turn as Server-Sent Events: thread, run_start, tool_call, tool_result, text_delta, ...,
+    final (text with checked citations, cited messages, structured data) or error."""
+    _project(pid)
+    if body.thread_id is not None:
+        thread = _found(db.get_thread(pid, body.thread_id), "thread")
+        agent, scope_type, scope_id = thread["agent"], thread["scope_type"], thread["scope_id"]
+        history = [Message.from_dict(m) for m in thread["messages"]]
+        tid = thread["id"]
+    else:
+        agent, scope_type, scope_id, history = body.agent, body.scope_type, body.scope_id, []
+        tid = None
+    try:
+        events = agents.run(pid, agent, body.message, scope_type, scope_id, history, body.options.model_dump())
+        first = next(events)  # surfaces a bad scope as a 400 before the stream starts
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if tid is None:
+        tid = db.create_thread(pid, agent, scope_type, scope_id, " ".join(body.message.split()))
+
+    def stream():
+        yield _sse({"type": "thread", "thread_id": tid, "agent": agent, "scope_type": scope_type, "scope_id": scope_id})
+        for ev in _chain(first, events):
+            if ev["type"] == "heartbeat":
+                yield ": keep-alive\n\n"
+                continue
+            if ev["type"] == "final":
+                db.append_thread(pid, tid, [m.to_dict() for m in ev["messages"]])
+                ev = {k: v for k, v in ev.items() if k != "messages"}
+            yield _sse(ev)
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+def _chain(first, rest):
+    yield first
+    yield from rest
+
+
+@router.get("/{pid}/threads")
+def list_threads(pid: int, agent: str | None = None, scope_type: str | None = None, scope_id: int | None = None):
+    _project(pid)
+    return db.list_threads(pid, agent, scope_type, scope_id)
+
+
+@router.get("/{pid}/threads/{tid}")
+def get_thread(pid: int, tid: int):
+    t = _found(db.get_thread(pid, tid), "thread")
+    msgs = [Message.from_dict(m) for m in t["messages"]]
+    shown = to_display(msgs)
+    for d, m in zip(shown, msgs):
+        if m.role == "assistant" and m.meta.get("citations") is not None:
+            d["citations"] = [x for i in m.meta["citations"] if (x := db.get_message(pid, i, 0)) and (x := x["message"])]
+    return {**{k: v for k, v in t.items() if k != "messages"}, "messages": shown}
+
+
+@router.delete("/{pid}/threads/{tid}")
+def delete_thread(pid: int, tid: int):
+    if not db.delete_thread(pid, tid):
+        raise HTTPException(404, "thread not found")
+    return {"deleted": tid}
 
 
 # ---------------------------------------------------------------- participants

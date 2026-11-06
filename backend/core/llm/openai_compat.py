@@ -43,7 +43,16 @@ class _ThinkFilter:
         return "".join(out)
 
 
+_LEAKED_CALL = re.compile(r"<tool_call>|<function=\w+>|<\|tool_call", re.I)
+
+
 class OpenAICompatProvider(Provider):
+    def _check_leak(self, text: str, calls: list) -> None:
+        """Some hosted models write a tool call into the text instead of the tool_calls field.
+        That answer is unusable, so fail it and let the router try the next model."""
+        if text and not calls and _LEAKED_CALL.search(text):
+            raise self._err("bad_response", "tool call written as text")
+
     def __init__(self, provider: str, base_url: str, model: str, *,
                  extra_headers: dict | None = None, **kw):
         super().__init__(model, **kw)
@@ -104,6 +113,7 @@ class OpenAICompatProvider(Provider):
                       for _, c in sorted(calls.items()) if c["name"]]
         if not text and not tool_calls:
             raise self._err("bad_response", "no text or tool call")
+        self._check_leak(text, tool_calls)
         return LLMResponse(text=text, tool_calls=tool_calls, provider=self.provider, model=self.model,
                            latency_ms=int((time.perf_counter() - t0) * 1000),
                            usage={"input_tokens": usage.get("prompt_tokens"),
@@ -152,6 +162,7 @@ class OpenAICompatProvider(Provider):
                                   args=self._args(fn.get("arguments") or "{}")))
         if not text and not calls:
             raise self._err("bad_response", "no text or tool call")
+        self._check_leak(text, calls)
 
         u = data.get("usage") or {}
         return LLMResponse(text=text, tool_calls=calls, provider=self.provider, model=self.model,
