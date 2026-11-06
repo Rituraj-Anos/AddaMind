@@ -37,9 +37,11 @@ CREATE TABLE IF NOT EXISTS messages(
   id INTEGER PRIMARY KEY, chat_id INTEGER NOT NULL REFERENCES chats ON DELETE CASCADE,
   participant_id INTEGER REFERENCES participants ON DELETE SET NULL,
   ts TEXT NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL, attachment TEXT,
-  edited INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL, UNIQUE(chat_id, hash));
+  edited INTEGER NOT NULL DEFAULT 0, hash TEXT NOT NULL,
+  passage_id INTEGER REFERENCES passages ON DELETE SET NULL, UNIQUE(chat_id, hash));
 CREATE INDEX IF NOT EXISTS messages_chat_ts ON messages(chat_id, ts, id);
 CREATE INDEX IF NOT EXISTS messages_participant ON messages(participant_id);
+CREATE INDEX IF NOT EXISTS messages_passage ON messages(passage_id);
 CREATE TABLE IF NOT EXISTS message_mentions(
   message_id INTEGER NOT NULL REFERENCES messages ON DELETE CASCADE,
   participant_id INTEGER NOT NULL REFERENCES participants ON DELETE CASCADE,
@@ -58,8 +60,14 @@ CREATE INDEX IF NOT EXISTS media_message ON media(message_id);
 CREATE INDEX IF NOT EXISTS media_chat ON media(chat_id, status);
 CREATE TABLE IF NOT EXISTS passages(
   id INTEGER PRIMARY KEY, chat_id INTEGER NOT NULL REFERENCES chats ON DELETE CASCADE,
-  first_msg INTEGER NOT NULL, last_msg INTEGER NOT NULL, text TEXT NOT NULL, embedding BLOB);
+  first_msg INTEGER NOT NULL, last_msg INTEGER NOT NULL, first_ts TEXT NOT NULL, last_ts TEXT NOT NULL,
+  text TEXT NOT NULL, model TEXT, embedding BLOB);
 CREATE INDEX IF NOT EXISTS passages_chat ON passages(chat_id);
+CREATE VIRTUAL TABLE IF NOT EXISTS passages_fts USING fts5(text, tokenize='unicode61 remove_diacritics 2');
+CREATE TRIGGER IF NOT EXISTS passages_ai AFTER INSERT ON passages BEGIN
+  INSERT INTO passages_fts(rowid, text) VALUES (new.id, new.text); END;
+CREATE TRIGGER IF NOT EXISTS passages_ad AFTER DELETE ON passages BEGIN
+  DELETE FROM passages_fts WHERE rowid = old.id; END;
 CREATE TABLE IF NOT EXISTS month_summaries(
   chat_id INTEGER NOT NULL REFERENCES chats ON DELETE CASCADE, month TEXT NOT NULL, json TEXT NOT NULL,
   PRIMARY KEY(chat_id, month));
@@ -210,7 +218,7 @@ def delete_chat(pid: int, cid: int) -> dict | None:
 
 
 # ---------------------------------------------------------------- messages
-_MSG_SELECT = """
+MSG_SELECT = """
 SELECT m.id, m.chat_id, m.participant_id, m.ts, m.kind, m.text, m.edited, p.name AS sender, p.masked,
        md.id AS media_id, md.status AS media_status, md.result AS media_result
 FROM messages m JOIN chats c ON c.id = m.chat_id AND c.project_id = ?
@@ -238,7 +246,7 @@ def messages_window(pid: int, cid: int, around: int | None = None, before: int |
             anchor = con.execute("SELECT ts, id FROM messages WHERE id = ? AND chat_id = ?", (anchor_id, cid)).fetchone()
             if not anchor:
                 return None
-        q = _MSG_SELECT + " WHERE m.chat_id = ?"
+        q = MSG_SELECT + " WHERE m.chat_id = ?"
         if anchor is None:
             rows = con.execute(q + " ORDER BY m.ts DESC, m.id DESC LIMIT ?", (pid, cid, limit)).fetchall()[::-1]
         elif around is None:

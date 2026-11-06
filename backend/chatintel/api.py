@@ -10,6 +10,7 @@
     GET    /projects/{pid}/jobs, /jobs/{jid}, /jobs/{jid}/events (SSE: one job JSON per change)
     GET    /projects/{pid}/chats/{cid}/messages?around=&before=&limit=
     GET    /projects/{pid}/messages/{mid}?context=
+    GET    /projects/{pid}/search?q=&chat_id=&participant_id=&since=&until=&k=
     GET    /projects/{pid}/media/{media_id}
     GET    /projects/{pid}/participants
     PATCH  /projects/{pid}/participants/{part_id}     {"is_me"?, "roast_opt_out"?}
@@ -25,7 +26,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import analytics, db, ingest
+from . import analytics, db, ingest, retrieval
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -186,6 +187,16 @@ def get_message(pid: int, mid: int, context: int = Query(5, ge=0, le=50)):
 def get_media(pid: int, media_id: int):
     row, path = _found(db.get_media(pid, media_id), "media")
     return FileResponse(path, media_type=row["mime"] or "application/octet-stream")
+
+
+@router.get("/{pid}/search")
+def search(pid: int, q: str = Query(min_length=1, max_length=300), chat_id: int | None = None,
+           participant_id: int | None = None, since: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+           until: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"), k: int = Query(8, ge=1, le=30)):
+    _project(pid)
+    if chat_id is not None:
+        _found(db.get_chat(pid, chat_id), "chat")
+    return retrieval.search(retrieval.Scope(pid, chat_id, participant_id), q, k, since, until)
 
 
 # ---------------------------------------------------------------- participants

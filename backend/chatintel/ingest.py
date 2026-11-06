@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Callable
 
-from . import db
+from . import db, retrieval
 from .parser import Message, norm_name, parse_export
 
 log = logging.getLogger("addamind.ingest")
@@ -239,7 +239,12 @@ def _save_media(job: Job) -> None:
     job.info.update(media_saved=len(saved), media_missing=len(todo) - len(saved))
 
 
-STAGES: list[tuple[str, Callable[[Job], None]]] = [("parse", stage_parse)]
+def stage_index(job: Job) -> None:
+    """Passages for the new messages, with embeddings (keyword search still works if those fail)."""
+    job.info.update(retrieval.build_passages(job.project_id, job.chat_id, job.progress))
+
+
+STAGES: list[tuple[str, Callable[[Job], None]]] = [("parse", stage_parse), ("index", stage_index)]
 
 
 def run_job(pid: int, job_id: int) -> None:
