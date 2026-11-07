@@ -315,11 +315,12 @@ export default function StartPage() {
     <div className="pb-24">
       <Marquee items={THEMES} seconds={44} />
       <div className="mx-auto max-w-[76rem] px-6 pt-12 sm:pt-16 lg:px-12">
+        <Hero compact={returning} />
         {returning && (
-          <section aria-labelledby="yours-title" className="mb-20">
-            <h1 id="yours-title" className="display text-[64px] text-cream sm:text-[88px]">
+          <section aria-labelledby="yours-title" className="mt-20">
+            <h2 id="yours-title" className="display text-[64px] text-cream sm:text-[88px]">
               Your addas
-            </h1>
+            </h2>
             <ul className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {projects.map((p) => (
                 <ProjectTile key={p.id} p={p} />
@@ -327,7 +328,6 @@ export default function StartPage() {
             </ul>
           </section>
         )}
-        <Hero compact={returning} />
         {!returning && <HowItWorks />}
       </div>
     </div>
