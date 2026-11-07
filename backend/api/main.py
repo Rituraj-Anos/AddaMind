@@ -83,7 +83,7 @@ class ChatRequest(BaseModel):
     conversation_id: str | None = Field(default=None, pattern=ID_PATTERN)
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])  # uptime monitors probe with HEAD
 def health():
     return {"status": "ok", "agent": profile.NAME,
             "models_available": sum(1 for m in get_router().status()["chain"] if m["available"]),

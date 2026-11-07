@@ -34,6 +34,11 @@ def test_projects_are_private_to_their_visitor(c):
     assert c.delete(f"/projects/{pid}", headers=A).status_code == 200
 
 
+def test_health_answers_head_for_uptime_monitors(c):
+    assert c.head("/health").status_code == 200
+    assert c.get("/health").json()["status"] == "ok"
+
+
 def test_bad_visitor_id_is_rejected(c):
     assert c.get("/projects", headers={"X-Visitor": "short"}).status_code == 400
     assert c.get("/projects", headers={"X-Visitor": "x" * 20 + "'; drop"}).status_code == 400
