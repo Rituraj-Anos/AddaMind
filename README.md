@@ -180,5 +180,4 @@ text. Projects never read each other's data.
 ## Credits
 
 Next.js, Tailwind CSS, Framer Motion, GSAP, Lenis, d3-force, Lucide, FastAPI, pypdf, NumPy. Fonts: Anton, Hanken Grotesk,
-JetBrains Mono (Google Fonts, OFL). The landing page's section structure was inspired by whatbrandonthinks.net; its
-content, visuals and code are AddaMind's own.
+JetBrains Mono (Google Fonts, OFL). The landing page's content, visuals and code are AddaMind's own.
