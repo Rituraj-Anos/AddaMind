@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, FileArchive, LockKeyhole, Trash2 } from "lucide-react";
+import { ArrowRight, Download, FileArchive, LockKeyhole, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ExportHelp } from "@/components/studio/ExportHelp";
@@ -22,7 +22,7 @@ const THEMES = [
 ];
 
 /** The hero's drop target: the whole block takes a drop, the button opens the picker. */
-function StartDrop() {
+function StartDrop({ center = false }: { center?: boolean }) {
   const { startWithFiles } = useStudio();
   const input = useRef<HTMLInputElement>(null);
   const depth = useRef(0);
@@ -85,7 +85,7 @@ function StartDrop() {
         over ? "border-lime bg-night-3" : "border-line-strong"
       }`}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div className={`flex flex-col gap-4 sm:flex-row sm:items-center ${center ? "items-center sm:justify-center" : ""}`}>
         <button
           type="button"
           disabled={busy}
@@ -129,7 +129,7 @@ function StartDrop() {
 }
 
 /** Says where an upload goes. The public demo server keeps it to this browser and deletes it after a day. */
-function PrivacyNote() {
+function PrivacyNote({ center = false }: { center?: boolean }) {
   const [hours, setHours] = useState<number | null>(null);
   useEffect(() => {
     api
@@ -138,7 +138,7 @@ function PrivacyNote() {
       .catch(() => {});
   }, []);
   return (
-    <p className="text-cream-3 mt-4 flex items-center gap-2 text-sm">
+    <p className={`text-cream-3 mt-4 flex items-center gap-2 text-sm ${center ? "justify-center" : ""}`}>
       <LockKeyhole aria-hidden className="size-4 shrink-0" />
       {hours === null
         ? "Kept on this server. Delete it and it\u2019s gone from disk."
@@ -147,18 +147,46 @@ function PrivacyNote() {
   );
 }
 
+/** Demo exports anyone can download and upload, to watch every stage run on a real file. */
+const SAMPLES = [
+  ["/samples/college-friends-android.zip", "WhatsApp Chat with College Friends.zip", "College Friends, Android, 20 people, 3.6 MB"],
+  ["/samples/shrimant-iphone.zip", "WhatsApp Chat - Shrimant.zip", "Shrimant, iPhone, one to one, 160 KB"],
+] as const;
+
+function SampleChats({ center = false }: { center?: boolean }) {
+  return (
+    <div className="mt-5">
+      <p className="text-cream-2 text-[15px]">No export to hand? Download a demo chat, then drop it above:</p>
+      <ul className={`mt-3 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
+        {SAMPLES.map(([href, name, label]) => (
+          <li key={href}>
+            <a
+              href={href}
+              download={name}
+              className="border-line-strong hover:border-lime hover:text-lime inline-flex h-10 items-center gap-2 rounded-full border px-4 text-[14px] text-cream transition-colors"
+            >
+              <Download aria-hidden className="size-4" /> {label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function Hero({ compact }: { compact: boolean }) {
   return (
-    <section aria-labelledby="start-title" className="grid items-center gap-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-      <div className="min-w-0">
+    <section aria-labelledby="start-title" className={compact ? "" : "grid items-center gap-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]"}>
+      <div className={compact ? "mx-auto w-full max-w-[44rem] text-center" : "min-w-0"}>
         <h1 id="start-title" className={`display text-cream ${compact ? "text-[56px] sm:text-[72px]" : "text-[64px] sm:text-[96px] xl:text-[112px]"}`}>
           {compact ? "Read another chat" : "Your group chat, finally read"}
         </h1>
-        <p className="text-cream-2 mt-5 max-w-[44ch] text-[18px] sm:text-[20px]">
+        <p className={`text-cream-2 mt-5 max-w-[44ch] text-[18px] sm:text-[20px] ${compact ? "mx-auto" : ""}`}>
           Drop a WhatsApp export. Four agents read every message and point to the ones that matter.
         </p>
-        <StartDrop />
-        <PrivacyNote />
+        <StartDrop center={compact} />
+        <SampleChats center={compact} />
+        <PrivacyNote center={compact} />
       </div>
       {!compact && <SampleRead />}
     </section>
