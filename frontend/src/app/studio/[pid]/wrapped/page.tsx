@@ -4,7 +4,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
-import { ArrowDown, Check, Link2, X } from "lucide-react";
+import { ArrowDown, Check, FileDown, Link2, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -351,6 +351,12 @@ export default function WrappedPage() {
         </p>
         <div className="line mt-10 flex flex-wrap gap-4">
           <ShareButton />
+          <Link
+            href={`/studio/${pid}/report?chat=${chat.id}`}
+            className="border-night hover:bg-night hover:text-cream inline-flex h-14 items-center gap-2 rounded-full border-2 px-8 text-[17px] font-semibold transition-colors"
+          >
+            <FileDown aria-hidden className="size-5" /> Export as PDF
+          </Link>
           <Link
             href={`/studio/${pid}/ask?chat=${chat.id}`}
             className="border-night hover:bg-night hover:text-cream inline-flex h-14 items-center rounded-full border-2 px-8 text-[17px] font-semibold transition-colors"

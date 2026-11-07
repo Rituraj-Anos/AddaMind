@@ -148,8 +148,8 @@ function Offline() {
 
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
-  // Wrapped is a full-screen story: no rail, no header.
-  if (path.endsWith("/wrapped")) return <MotionConfig reducedMotion="user">{children}</MotionConfig>;
+  // Wrapped is a full-screen story and the report is a printable page: no rail, no header.
+  if (path.endsWith("/wrapped") || path.endsWith("/report")) return <MotionConfig reducedMotion="user">{children}</MotionConfig>;
   return <Framed>{children}</Framed>;
 }
 

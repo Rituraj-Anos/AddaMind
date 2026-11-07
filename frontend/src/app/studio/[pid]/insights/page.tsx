@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { FileDown, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -78,6 +78,12 @@ export default function InsightsPage() {
             <p className="text-cream-2 mt-2 text-[17px]">
               {chat.kind === "group" ? `Group of ${chat.member_count}` : "One to one"}, {formatRange(chat.first_ts, chat.last_ts)}
             </p>
+            <Link
+              href={`/studio/${pid}/report?chat=${cid}`}
+              className="bg-lime text-night on-lime mt-5 inline-flex h-10 items-center gap-2 rounded-full px-5 text-[15px] font-semibold"
+            >
+              <FileDown aria-hidden className="size-4" /> Export as PDF
+            </Link>
           </div>
           {chats.length > 1 && (
             <div role="tablist" aria-label="Chat" className="flex flex-wrap gap-2">

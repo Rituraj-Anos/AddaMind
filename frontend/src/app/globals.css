@@ -335,3 +335,20 @@ a {
     animation: none;
   }
 }
+
+/* The chat report (studio/[pid]/report) prints as a paper PDF, colours kept. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+  .report {
+    background: var(--color-paper);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
