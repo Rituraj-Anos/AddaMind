@@ -131,6 +131,16 @@ def connect():
         con.close()
 
 
+def load_seed() -> bool:
+    """First boot on an empty disk (a fresh Render deploy): copy the synthetic demo project from /seed.
+    Does nothing if a database already exists, so local data is never overwritten."""
+    seed = Path(__file__).resolve().parents[2] / "seed"
+    if (data_dir() / "addamind.db").exists() or not (seed / "addamind.db").exists():
+        return False
+    shutil.copytree(seed, data_dir(), dirs_exist_ok=True)
+    return True
+
+
 def recover_jobs() -> int:
     """Jobs run in server threads and die with the server. Call once at API startup (not from CLIs,
     which would mark a running server's jobs failed)."""

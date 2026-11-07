@@ -42,6 +42,7 @@ from .store import ID_PATTERN, ConversationStore, to_display
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    chatintel_db.load_seed()
     chatintel_db.recover_jobs()
     yield
 
