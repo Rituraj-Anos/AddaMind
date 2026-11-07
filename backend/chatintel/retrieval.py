@@ -43,7 +43,7 @@ class Scope:
 
 def _line(r) -> str:
     if r["kind"] == "system":
-        return f"(group event) {r['text']}"
+        return f"(group event) {db.redact(r['text'])}"
     who = db.shown_name(r["sender"], r["masked"]) or "?"
     return f"{who}: {db.media_line(r['kind'], r['text'], r['media_result'])}"
 

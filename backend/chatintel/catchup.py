@@ -162,7 +162,7 @@ class CatchupRead(BaseModel):
 def _transcript(rows, keep_ids: set[int]) -> tuple[str, set[int], bool]:
     """Unread lines within BUDGET. Over budget, keeps messages to the user, questions and media first."""
     def line(r):
-        body = (f"(event) {r['text']}" if r["kind"] == "system" else
+        body = (f"(event) {db.redact(r['text'])}" if r["kind"] == "system" else
                 f"{db.shown_name(r['sender'], r['masked'])}: {db.media_line(r['kind'], r['text'], r['media_result'])}")
         return f"[m:{r['id']}] {r['ts'][5:16]} {body[:LINE_CHARS]}"
     lines = [(r, line(r)) for r in rows]

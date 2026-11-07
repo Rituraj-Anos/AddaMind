@@ -120,7 +120,7 @@ def _transcript(rows) -> tuple[str, set[int], bool]:
             lines.append((None, f"## {d}"))
             day = d
         if r["kind"] == "system":
-            body = f"(event) {r['text']}"
+            body = f"(event) {db.redact(r['text'])}"
         else:
             body = f"{db.shown_name(r['sender'], r['masked'])}: {db.media_line(r['kind'], r['text'], r['media_result'])}"
         lines.append((r, f"[m:{r['id']}] {hm} {body[:300]}"))

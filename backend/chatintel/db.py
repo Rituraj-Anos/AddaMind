@@ -180,8 +180,35 @@ MEDIA_LABEL = {"image": "photo", "voice": "voice note", "audio": "audio", "video
                "sticker": "sticker", "gif": "GIF", "contact": "contact card", "media_omitted": "media not exported"}
 
 
+# Personal data inside message text, hidden before anything reaches a model or the UI. The database keeps the
+# original so deleting a project still removes it.
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]*\w")
+_UPI = re.compile(r"(?<![\w@.])[\w.-]{2,}@[a-z]{2,}(?![\w.@])", re.I)
+_SECRET = re.compile(r"(?i)\b(otp|pin|cvv|code|password|passcode|pwd)\b(\W{0,4}(?:is\W{1,3})?)\d{4,8}\b")
+_LONG_NUM = re.compile(r"\+?\d[\d \-]{8,}\d")
+_DATE = re.compile(r"\d{1,4}-\d{1,2}-\d{1,4}")
+
+
+def _num(m: re.Match) -> str:
+    s = m.group()
+    if sum(c.isdigit() for c in s) < 10 or _DATE.match(s):  # short numbers and dates are not personal
+        return s
+    return re.sub(r"\d(?=(?:\D*\d){3})", "•", s)
+
+
+def redact(text: str | None) -> str | None:
+    """Mask phone, card and account numbers (last 3 digits kept), and hide emails, UPI IDs and OTPs."""
+    if not text:
+        return text
+    text = _EMAIL.sub("[email]", text)
+    text = _UPI.sub("[upi id]", text)
+    text = _SECRET.sub(lambda m: f"{m.group(1)}{m.group(2)}[code]", text)
+    return _LONG_NUM.sub(_num, text)
+
+
 def media_line(kind: str, text: str | None, result: str | None = None) -> str:
     """Message text with its media, as indexed and shown to agents: 'caption [voice note] "transcript"'."""
+    text, result = redact(text), redact(result)
     label = MEDIA_LABEL.get(kind)
     if not label:
         return text or ""
@@ -276,9 +303,10 @@ LEFT JOIN media md ON md.message_id = m.id"""
 
 
 def message_json(r) -> dict:
-    media = {"id": r["media_id"], "status": r["media_status"], "result": r["media_result"]} if r["media_id"] else None
+    media = ({"id": r["media_id"], "status": r["media_status"], "result": redact(r["media_result"])}
+             if r["media_id"] else None)
     return {"id": r["id"], "chat_id": r["chat_id"], "ts": r["ts"], "participant_id": r["participant_id"],
-            "sender": shown_name(r["sender"], r["masked"]), "kind": r["kind"], "text": r["text"],
+            "sender": shown_name(r["sender"], r["masked"]), "kind": r["kind"], "text": redact(r["text"]),
             "edited": bool(r["edited"]), "media": media}
 
 
