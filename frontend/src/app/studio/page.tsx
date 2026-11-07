@@ -117,6 +117,25 @@ function StartDrop() {
   );
 }
 
+/** Says where an upload goes. The public demo server keeps it to this browser and deletes it after a day. */
+function PrivacyNote() {
+  const [hours, setHours] = useState<number | null>(null);
+  useEffect(() => {
+    api
+      .health()
+      .then((h) => setHours(h.public ? (h.retention_hours ?? 24) : null))
+      .catch(() => {});
+  }, []);
+  return (
+    <p className="text-cream-3 mt-4 flex items-center gap-2 text-sm">
+      <LockKeyhole aria-hidden className="size-4 shrink-0" />
+      {hours === null
+        ? "Kept on this server. Delete it and it\u2019s gone from disk."
+        : `Only this browser can open it, and it\u2019s deleted from the server after ${plural(hours, "hour")}.`}
+    </p>
+  );
+}
+
 function Hero({ compact }: { compact: boolean }) {
   return (
     <section aria-labelledby="start-title" className="grid items-center gap-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
@@ -128,9 +147,7 @@ function Hero({ compact }: { compact: boolean }) {
           Drop a WhatsApp export. Four agents read every message and point to the ones that matter.
         </p>
         <StartDrop />
-        <p className="text-cream-3 mt-4 flex items-center gap-2 text-sm">
-          <LockKeyhole aria-hidden className="size-4" /> Kept on this server. Delete it and it&rsquo;s gone from disk.
-        </p>
+        <PrivacyNote />
       </div>
       {!compact && <SampleRead />}
     </section>

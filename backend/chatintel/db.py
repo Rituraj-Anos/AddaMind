@@ -10,7 +10,7 @@ import shutil
 import sqlite3
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from backend.core.config import CACHE_DIR, env_str
@@ -124,6 +124,10 @@ def connect():
                 if str(path) not in _ready:
                     con.execute("PRAGMA journal_mode = WAL")
                     con.executescript(SCHEMA)
+                    # owner: the visitor id that created it (NULL = shared, like the demo); added to older files too
+                    for table in ("projects", "threads"):
+                        if "owner" not in {r[1] for r in con.execute(f"PRAGMA table_info({table})")}:
+                            con.execute(f"ALTER TABLE {table} ADD COLUMN owner TEXT")
                     _ready.add(str(path))
         with con:
             yield con
@@ -183,9 +187,9 @@ def media_line(kind: str, text: str | None, result: str | None = None) -> str:
 
 
 # ---------------------------------------------------------------- projects
-def create_project(name: str) -> dict:
+def create_project(name: str, owner: str | None = None) -> dict:
     with connect() as con:
-        cur = con.execute("INSERT INTO projects(name, created_at) VALUES (?, ?)", (name, now()))
+        cur = con.execute("INSERT INTO projects(name, created_at, owner) VALUES (?, ?, ?)", (name, now(), owner))
     return get_project(cur.lastrowid)
 
 
@@ -219,6 +223,14 @@ def delete_project(pid: int) -> dict | None:
         if not con.execute("DELETE FROM projects WHERE id = ?", (pid,)).rowcount:
             return None
     return {"deleted": pid, "files_removed": _remove_dir(project_dir(pid))}
+
+
+def delete_expired(hours: float) -> list[int]:
+    """Delete visitor-owned projects older than `hours` (rows and files). Shared projects are kept."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
+    with connect() as con:
+        ids = [r[0] for r in con.execute("SELECT id FROM projects WHERE owner IS NOT NULL AND created_at < ?", (cutoff,))]
+    return [pid for pid in ids if delete_project(pid)]
 
 
 # ---------------------------------------------------------------- chats
@@ -376,10 +388,11 @@ def merge_participants(pid: int, src: int, into: int) -> bool:
 
 
 # ---------------------------------------------------------------- agent threads
-def create_thread(pid: int, agent: str, scope_type: str, scope_id: int | None, title: str) -> int:
+def create_thread(pid: int, agent: str, scope_type: str, scope_id: int | None, title: str, owner: str | None = None) -> int:
     with connect() as con:
-        return con.execute("INSERT INTO threads(project_id, agent, scope_type, scope_id, title, created_at, updated_at) "
-                           "VALUES (?, ?, ?, ?, ?, ?, ?)", (pid, agent, scope_type, scope_id, title[:80], now(), now())).lastrowid
+        return con.execute("INSERT INTO threads(project_id, agent, scope_type, scope_id, title, created_at, updated_at, owner) "
+                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                           (pid, agent, scope_type, scope_id, title[:80], now(), now(), owner)).lastrowid
 
 
 def get_thread(pid: int, tid: int) -> dict | None:
@@ -396,9 +409,11 @@ def append_thread(pid: int, tid: int, messages: list[dict]) -> None:
                         (json.dumps(json.loads(r["messages"]) + messages, ensure_ascii=False), now(), tid))
 
 
-def list_threads(pid: int, agent: str | None = None, scope_type: str | None = None, scope_id: int | None = None) -> list[dict]:
+def list_threads(pid: int, agent: str | None = None, scope_type: str | None = None, scope_id: int | None = None,
+                 visitor: str | None = None) -> list[dict]:
+    """Threads in this project that are shared (no owner) or belong to `visitor`."""
     sql, args = "SELECT id, agent, scope_type, scope_id, title, created_at, updated_at FROM threads " \
-                "WHERE project_id = ? AND messages != '[]'", [pid]
+                "WHERE project_id = ? AND messages != '[]' AND (owner IS NULL OR owner = ?)", [pid, visitor]
     for col, v in (("agent", agent), ("scope_type", scope_type), ("scope_id", scope_id)):
         if v is not None:
             sql += f" AND {col} = ?"

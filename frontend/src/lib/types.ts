@@ -188,4 +188,7 @@ export interface Persona {
 export interface Health {
   status: string;
   models_available: number;
+  /** A public server: uploads are visible only to this browser and deleted after `retention_hours`. */
+  public?: boolean;
+  retention_hours?: number;
 }

@@ -1,5 +1,5 @@
 // Agent runs: the SSE stream from POST /projects/{pid}/agent, folded into a Turn by a pure reducer.
-import { API_URL, ApiError } from "./api";
+import { API_URL, ApiError, withVisitor } from "./api";
 
 export type AgentKey = "analyzer" | "roaster" | "reply" | "recall";
 export type Tone = "wholesome" | "spicy" | "savage";
@@ -225,7 +225,7 @@ export async function* streamAgent(pid: number, body: AgentRequest, signal: Abor
   try {
     r = await fetch(`${API_URL}/projects/${pid}/agent`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withVisitor({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
       signal,
     });

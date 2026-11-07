@@ -36,6 +36,7 @@ from backend.core.llm import get_router
 from backend.core.tools import registry
 
 from backend.chatintel import db as chatintel_db
+from backend.chatintel import api as chatintel_api
 from backend.chatintel.api import router as chatintel_router
 
 from .store import ID_PATTERN, ConversationStore, to_display
@@ -44,6 +45,7 @@ from .store import ID_PATTERN, ConversationStore, to_display
 async def lifespan(_app: FastAPI):
     chatintel_db.load_seed()
     chatintel_db.recover_jobs()
+    chatintel_api.start_cleanup()
     yield
 
 
@@ -57,7 +59,7 @@ app.add_middleware(
     allow_origins=[o.strip() for o in env_str("CORS_ORIGINS").split(",") if o.strip()],
     allow_origin_regex=env_str("CORS_ORIGIN_REGEX", r"http://(localhost|127\.0\.0\.1)(:\d+)?"),
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "X-Visitor"],
 )
 
 store = ConversationStore()
@@ -86,7 +88,9 @@ def health():
     return {"status": "ok", "agent": profile.NAME,
             "models_available": sum(1 for m in get_router().status()["chain"] if m["available"]),
             # How many API keys each provider has, ready or resting or refused. Never the keys themselves.
-            "keys": {name: api_keys.status(f"{name.upper()}_API_KEY") for name in ("gemini", "groq", "nvidia", "openrouter")}}
+            "keys": {name: api_keys.status(f"{name.upper()}_API_KEY") for name in ("gemini", "groq", "nvidia", "openrouter")},
+            # A public server keeps uploads private to the browser that sent them and deletes them after this long.
+            "public": chatintel_api.public(), "retention_hours": chatintel_api.retention_hours()}
 
 
 @app.get("/profile")

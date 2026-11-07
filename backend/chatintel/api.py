@@ -24,20 +24,83 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.api.store import to_display
+from backend.core.config import env_float, env_str
 from backend.core.llm import Message
 
 from . import agents, analytics, db, ingest, memory, personas, retrieval, voice
 
-router = APIRouter(prefix="/projects", tags=["projects"])
+# ---------------------------------------------------------------- visitors
+# Each browser sends a random id (X-Visitor header, or ?v= where a header can't be set, like <img src>).
+# Projects it creates belong to it; nobody else can list, read or change them. Projects with no owner
+# (the demo seed, anything made by scripts) are shared; on a public server (ADDAMIND_PUBLIC=1) they are
+# read-only apart from asking the agents, and visitor projects are deleted after ADDAMIND_RETENTION_HOURS.
+# shortcut: the id is a bearer secret kept in the browser, not a login; anyone holding it is the owner.
+_VISITOR = re.compile(r"[A-Za-z0-9_-]{16,64}")
+
+
+def public() -> bool:
+    return env_str("ADDAMIND_PUBLIC").lower() in ("1", "true", "yes", "on")
+
+
+def retention_hours() -> float:
+    return env_float("ADDAMIND_RETENTION_HOURS", 24.0)
+
+
+def _visitor(request: Request) -> str | None:
+    """Runs before every /projects route: checks the visitor id and that the project in the path is theirs."""
+    v = request.headers.get("x-visitor") or request.query_params.get("v") or None
+    if v is not None and not _VISITOR.fullmatch(v):
+        raise HTTPException(400, "bad visitor id")
+    raw = request.path_params.get("pid")
+    if raw is None:
+        if public() and request.method == "POST" and v is None:
+            raise HTTPException(400, "missing visitor id")
+        return v
+    try:
+        p = db.get_project(int(raw))
+    except ValueError:
+        return v  # the route's own validation answers 422
+    if p is None:
+        return v
+    if p["owner"] is not None and p["owner"] != v:
+        raise HTTPException(404, "project not found")  # same answer as a missing project, so ids can't be probed
+    shared_write = request.url.path.endswith(("/agent", "/tts")) or "/threads/" in request.url.path
+    if p["owner"] is None and public() and request.method != "GET" and not shared_write:
+        raise HTTPException(403, "The demo project is read-only. Upload your own chat to get a project you can change.")
+    return v
+
+
+Visitor = Annotated[str | None, Depends(_visitor)]
+router = APIRouter(prefix="/projects", tags=["projects"], dependencies=[Depends(_visitor)])
+
+
+def _cleanup_loop() -> None:
+    while True:
+        try:
+            gone = db.delete_expired(retention_hours())
+            if gone:
+                print(f"retention: deleted {len(gone)} expired project(s)", flush=True)
+        except Exception as e:  # noqa: BLE001 - keep the loop alive; the next pass retries
+            print(f"retention: {type(e).__name__}", flush=True)
+        time.sleep(3600)
+
+
+def start_cleanup() -> bool:
+    """On a public server, delete visitor projects past their retention, now and every hour."""
+    if not public():
+        return False
+    threading.Thread(target=_cleanup_loop, name="retention", daemon=True).start()
+    return True
 
 
 class ProjectIn(BaseModel):
@@ -67,13 +130,13 @@ def _found(value, what: str):
 
 
 @router.post("", status_code=201)
-def create_project(body: ProjectIn):
-    return db.create_project(body.name.strip())
+def create_project(body: ProjectIn, visitor: Visitor):
+    return db.create_project(body.name.strip(), visitor)
 
 
 @router.get("")
-def list_projects():
-    return db.list_projects()
+def list_projects(visitor: Visitor):
+    return [p for p in db.list_projects() if p["owner"] in (None, visitor)]
 
 
 @router.get("/{pid}")
@@ -249,12 +312,12 @@ def _sse(event: dict) -> str:
 
 
 @router.post("/{pid}/agent")
-def agent_chat(pid: int, body: AgentIn):
+def agent_chat(pid: int, body: AgentIn, visitor: Visitor):
     """One agent turn as Server-Sent Events: thread, run_start, tool_call, tool_result, text_delta, ...,
     final (text with checked citations, cited messages, structured data) or error."""
     _project(pid)
     if body.thread_id is not None:
-        thread = _found(db.get_thread(pid, body.thread_id), "thread")
+        thread = _thread(pid, body.thread_id, visitor)
         agent, scope_type, scope_id = thread["agent"], thread["scope_type"], thread["scope_id"]
         history = [Message.from_dict(m) for m in thread["messages"]]
         tid = thread["id"]
@@ -267,7 +330,7 @@ def agent_chat(pid: int, body: AgentIn):
     except ValueError as e:
         raise HTTPException(400, str(e))
     if tid is None:
-        tid = db.create_thread(pid, agent, scope_type, scope_id, " ".join(body.message.split()))
+        tid = db.create_thread(pid, agent, scope_type, scope_id, " ".join(body.message.split()), visitor)
 
     def stream():
         yield _sse({"type": "thread", "thread_id": tid, "agent": agent, "scope_type": scope_type, "scope_id": scope_id})
@@ -289,25 +352,37 @@ def _chain(first, rest):
     yield from rest
 
 
+def _thread(pid: int, tid: int, visitor: str | None) -> dict:
+    """A thread this visitor may see: shared (no owner) or their own. Others answer 404."""
+    t = db.get_thread(pid, tid)
+    if t is None or t["owner"] not in (None, visitor):
+        raise HTTPException(404, "thread not found")
+    return t
+
+
 @router.get("/{pid}/threads")
-def list_threads(pid: int, agent: str | None = None, scope_type: str | None = None, scope_id: int | None = None):
+def list_threads(pid: int, visitor: Visitor, agent: str | None = None, scope_type: str | None = None,
+                 scope_id: int | None = None):
     _project(pid)
-    return db.list_threads(pid, agent, scope_type, scope_id)
+    return db.list_threads(pid, agent, scope_type, scope_id, visitor)
 
 
 @router.get("/{pid}/threads/{tid}")
-def get_thread(pid: int, tid: int):
-    t = _found(db.get_thread(pid, tid), "thread")
+def get_thread(pid: int, tid: int, visitor: Visitor):
+    t = _thread(pid, tid, visitor)
     msgs = [Message.from_dict(m) for m in t["messages"]]
     shown = to_display(msgs)
     for d, m in zip(shown, msgs):
         if m.role == "assistant" and m.meta.get("citations") is not None:
             d["citations"] = [x for i in m.meta["citations"] if (x := db.get_message(pid, i, 0)) and (x := x["message"])]
-    return {**{k: v for k, v in t.items() if k != "messages"}, "messages": shown}
+    return {**{k: v for k, v in t.items() if k not in ("messages", "owner")}, "messages": shown}
 
 
 @router.delete("/{pid}/threads/{tid}")
-def delete_thread(pid: int, tid: int):
+def delete_thread(pid: int, tid: int, visitor: Visitor):
+    t = _thread(pid, tid, visitor)
+    if t["owner"] is None and public():
+        raise HTTPException(403, "shared threads can't be deleted here")
     if not db.delete_thread(pid, tid):
         raise HTTPException(404, "thread not found")
     return {"deleted": tid}

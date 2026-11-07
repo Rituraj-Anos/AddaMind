@@ -15,6 +15,25 @@ import type {
 // Set NEXT_PUBLIC_API_URL at build time for deployment (the Render URL). Inlined into the bundle.
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
+/** A random id for this browser. The API shows each browser only its own projects (plus the shared demo). */
+export function visitorId(): string {
+  if (typeof window === "undefined") return "";
+  let v = localStorage.getItem("addamind-visitor");
+  if (!v) {
+    v = crypto.randomUUID().replaceAll("-", "");
+    localStorage.setItem("addamind-visitor", v);
+  }
+  return v;
+}
+
+/** Request headers with the visitor id added. */
+export function withVisitor(headers: HeadersInit = {}): Headers {
+  const h = new Headers(headers);
+  const v = visitorId();
+  if (v) h.set("X-Visitor", v);
+  return h;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -43,7 +62,7 @@ function reason(body: string): string {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let r: Response;
   try {
-    r = await fetch(API_URL + path, init);
+    r = await fetch(API_URL + path, { ...init, headers: withVisitor(init?.headers) });
   } catch {
     throw new ApiError(0, `Can't reach ${API_URL}`);
   }
@@ -66,11 +85,13 @@ export const api = {
   chatStats: (pid: number, cid: number) => request<ChatStats>(`/projects/${pid}/chats/${cid}/stats`),
   message: (pid: number, mid: number, context = 5) =>
     request<{ message: Msg; before: Msg[]; after: Msg[] }>(`/projects/${pid}/messages/${mid}?context=${context}`),
-  mediaUrl: (pid: number, mediaId: number) => `${API_URL}/projects/${pid}/media/${mediaId}`,
+  // <img>/<audio> can't send headers, so the visitor id goes in the query string.
+  mediaUrl: (pid: number, mediaId: number) => `${API_URL}/projects/${pid}/media/${mediaId}?v=${visitorId()}`,
   memory: (pid: number, cid: number) => request<ChatMemory>(`/projects/${pid}/chats/${cid}/memory`),
   /** A roast as WAV from Gemini's voice. Throws when the server can't, so the caller can use the browser's voice. */
   speak: async (pid: number, text: string): Promise<Blob> => {
-    const r = await fetch(`${API_URL}/projects/${pid}/tts`, json("POST", { text }));
+    const init = json("POST", { text });
+    const r = await fetch(`${API_URL}/projects/${pid}/tts`, { ...init, headers: withVisitor(init.headers) });
     if (!r.ok) throw new ApiError(r.status, "text to speech failed");
     return r.blob();
   },
@@ -100,6 +121,7 @@ export function uploadChat(
   const xhr = new XMLHttpRequest();
   const promise = new Promise<number>((resolve, reject) => {
     xhr.open("POST", `${API_URL}/projects/${pid}/chats`);
+    xhr.setRequestHeader("X-Visitor", visitorId());
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
     xhr.onload = () => {
       if (xhr.status === 202) resolve(JSON.parse(xhr.responseText).job_id);

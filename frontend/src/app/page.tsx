@@ -84,7 +84,7 @@ function HeroCard() {
           </span>
         </div>
         <p className="text-ink-2 mt-6 font-mono text-[11px]">What the chat shows</p>
-        <h2 className="display mt-2 text-[40px] leading-[0.95] sm:text-[46px]">Priya runs this group. Rohan narrates it.</h2>
+        <h2 className="display mt-2 text-[40px] leading-[0.95] sm:text-[46px]">Rupsha runs this group. Rituraj narrates it.</h2>
         <p className="text-ink-2 mt-3 text-[16px] leading-snug">
           She starts a third of the conversations. He answers most of them in voice notes.
         </p>
@@ -364,7 +364,7 @@ function Sample() {
           <div className="relative">
             <p className="text-pink font-mono text-[12px]">Sample read / College Friends, the demo group</p>
             <h2 className="display mt-4 max-w-[16ch] text-[56px] leading-[0.92] sm:text-[84px]">
-              Priya books the trips while Rohan books the airtime
+              Rupsha books the trips while Rituraj books the airtime
             </h2>
             <p className="text-ink-2 mt-6 max-w-[60ch] text-[18px] leading-relaxed">
               Twenty friends, one year, 3,466 messages. One person keeps opening conversations; another answers almost
@@ -385,7 +385,7 @@ function Sample() {
                 </span>
                 <p className="text-lime font-mono text-[12px]">The agents&rsquo; call, short version</p>
                 <p className="mt-4 max-w-[30ch] text-[28px] leading-snug font-semibold sm:text-[36px]">
-                  Priya is the engine: 16.5% of the messages and 145 of the 429 conversations started. The group is warmest on
+                  Rupsha is the engine: 16.5% of the messages and 145 of the 429 conversations started. The group is warmest on
                   trips and festivals and{" "}
                   <span className="decoration-lime underline decoration-[3px] underline-offset-[6px]">goes quiet in exam month</span>.
                 </p>
@@ -399,7 +399,7 @@ function Sample() {
                     </div>
                   </div>
                   <p className="text-cream-2 max-w-[56ch] flex-1 text-[16px] leading-relaxed">
-                    <b className="text-cream">Next question:</b> ask who replies to Priya first, and who never does. The reply
+                    <b className="text-cream">Next question:</b> ask who replies to Rupsha first, and who never does. The reply
                     graph has the answer, with the messages behind it.
                   </p>
                 </div>
@@ -407,28 +407,28 @@ function Sample() {
             </Reveal>
 
             <div className="border-rule bg-paper mt-10 grid divide-y rounded-[20px] border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-              <Split label="Conversations started" a="Priya" b="Next five" av={145} bv={162} note="Almost as many as the next five people together." />
-              <Split label="Voice notes" a="Rohan" b="Everyone" av={112} bv={41} note="Three of every four voice notes are his." />
-              <Split label="Messages after midnight" a="Kabir" b="Priya" av={82} bv={50} note="The night owl, by a distance." />
+              <Split label="Conversations started" a="Rupsha" b="Next five" av={145} bv={162} note="Almost as many as the next five people together." />
+              <Split label="Voice notes" a="Rituraj" b="Everyone" av={112} bv={41} note="Three of every four voice notes are his." />
+              <Split label="Messages after midnight" a="Kabir" b="Rupsha" av={82} bv={50} note="The night owl, by a distance." />
             </div>
 
             <div className="mt-14 grid gap-10">
               <Exhibit
                 n="01"
-                title="Abhishek forgot the tickets. Priya fixed it in a minute."
-                happened="At 4:12 am on the day of the Goa flight, Abhishek says the printouts are at home. Priya answers sixty seconds later with the fix."
-                read="The planner is also the one who cleans up. It's the same pattern as the conversation counts: Priya carries the group's logistics."
+                title="Abhishek forgot the tickets. Rupsha fixed it in a minute."
+                happened="At 4:12 am on the day of the Goa flight, Abhishek says the printouts are at home. Rupsha answers sixty seconds later with the fix."
+                read="The planner is also the one who cleans up. It's the same pattern as the conversation counts: Rupsha carries the group's logistics."
               >
                 <Bubble who="Abhishek Kundu" when="14 Mar, 4:12" text="BHAI TICKETS GHAR PE BHOOL GAYA 😭😭 printout wala" />
-                <Bubble who="Priya Sen" when="4:13" text="PNR se ho jayega, chill. Aadhaar hai na?" me />
+                <Bubble who="Rupsha Sen" when="4:13" text="PNR se ho jayega, chill. Aadhaar hai na?" me />
               </Exhibit>
               <Exhibit
                 n="02"
-                title="Rohan's 'ek minute' is never a minute."
-                happened="Rohan opens voice notes with 'ek minute' all year. By February the group is already teasing him for it."
-                read="'Ek minute' is the chat's longest-running inside joke: 83 uses by 12 people, all traced back to Rohan's first voice note."
+                title="Rituraj's 'ek minute' is never a minute."
+                happened="Rituraj opens voice notes with 'ek minute' all year. By February the group is already teasing him for it."
+                read="'Ek minute' is the chat's longest-running inside joke: 83 uses by 12 people, all traced back to Rituraj's first voice note."
               >
-                <Bubble who="Abhishek Kundu" when="20 Feb, 21:44" text="Rohan bhai tera 'ek minute' matlab 4 minute ka voice note 😭" />
+                <Bubble who="Abhishek Kundu" when="20 Feb, 21:44" text="Rituraj bhai tera 'ek minute' matlab 4 minute ka voice note 😭" />
                 <Bubble who="Arjun Mehta" when="21:45" text="ek minute 💀💀" me />
               </Exhibit>
             </div>
