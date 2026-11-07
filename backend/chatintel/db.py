@@ -88,6 +88,9 @@ CREATE TABLE IF NOT EXISTS jobs(
   done INTEGER NOT NULL DEFAULT 0, total INTEGER NOT NULL DEFAULT 0, error TEXT, info TEXT,
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS llm_cache(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS read_marks(
+  chat_id INTEGER NOT NULL REFERENCES chats ON DELETE CASCADE, owner TEXT NOT NULL DEFAULT '',
+  message_id INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(chat_id, owner)) WITHOUT ROWID;
 """
 
 _ready: set[str] = set()

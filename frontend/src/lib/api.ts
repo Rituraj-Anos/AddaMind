@@ -1,5 +1,8 @@
 import type { Msg, ThreadSummary, turnsFromThread } from "./agent";
 import type {
+  CatchupCounts,
+  CatchupMode,
+  CatchupRead,
   Chat,
   ChatMemory,
   ChatStats,
@@ -110,7 +113,19 @@ export const api = {
   updateParticipant: (pid: number, id: number, patch: { is_me?: boolean; roast_opt_out?: boolean }) =>
     request<Participant>(`/projects/${pid}/participants/${id}`, json("PATCH", patch)),
   chats: (pid: number) => request<Chat[]>(`/projects/${pid}/chats`),
+  catchup: (pid: number, cid: number, mode: CatchupMode, fromTs?: string) =>
+    request<CatchupCounts>(`/projects/${pid}/chats/${cid}/catchup?${catchupQuery(mode, fromTs)}`),
+  catchupDigest: (pid: number, cid: number, mode: CatchupMode, fromTs?: string) =>
+    request<CatchupRead>(`/projects/${pid}/chats/${cid}/catchup/digest?${catchupQuery(mode, fromTs)}`),
+  markCaughtUp: (pid: number, cid: number, messageId: number) =>
+    request<CatchupCounts>(`/projects/${pid}/chats/${cid}/catchup/mark`, json("POST", { message_id: messageId })),
 };
+
+function catchupQuery(mode: CatchupMode, fromTs?: string) {
+  const q = new URLSearchParams({ mode });
+  if (mode === "time" && fromTs) q.set("from_ts", fromTs);
+  return q.toString();
+}
 
 /** Upload an export with byte progress (fetch cannot report upload progress, XHR can). Resolves with the job id. */
 export function uploadChat(

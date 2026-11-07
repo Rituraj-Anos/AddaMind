@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
-import { ChartSpline, FolderOpen, House, MessageCircleQuestion, Menu, Sparkles, Users, WifiOff, X } from "lucide-react";
+import { ChartSpline, FolderOpen, House, Inbox, MessageCircleQuestion, Menu, Sparkles, Users, WifiOff, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -58,6 +58,9 @@ function RailBody() {
             </NavLink>
             <NavLink href={`/studio/${pid}/ask`} icon={<MessageCircleQuestion aria-hidden className="size-[18px]" />}>
               Ask the agents
+            </NavLink>
+            <NavLink href={`/studio/${pid}/catchup`} icon={<Inbox aria-hidden className="size-[18px]" />}>
+              Catch up
             </NavLink>
             <NavLink href={`/studio/${pid}/insights`} icon={<ChartSpline aria-hidden className="size-[18px]" />}>
               Insights

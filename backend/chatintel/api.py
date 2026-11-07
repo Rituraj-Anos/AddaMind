@@ -37,7 +37,7 @@ from backend.api.store import to_display
 from backend.core.config import env_float, env_str
 from backend.core.llm import Message
 
-from . import agents, analytics, db, ingest, memory, personas, retrieval, voice
+from . import agents, analytics, catchup, db, ingest, memory, personas, retrieval, voice
 
 # ---------------------------------------------------------------- visitors
 # Each browser sends a random id (X-Visitor header, or ?v= where a header can't be set, like <img src>).
@@ -74,7 +74,7 @@ def _visitor(request: Request) -> str | None:
         return v
     if p["owner"] is not None and p["owner"] != v:
         raise HTTPException(404, "project not found")  # same answer as a missing project, so ids can't be probed
-    shared_write = request.url.path.endswith(("/agent", "/tts")) or "/threads/" in request.url.path
+    shared_write = request.url.path.endswith(("/agent", "/tts", "/catchup/mark")) or "/threads/" in request.url.path
     if p["owner"] is None and public() and request.method != "GET" and not shared_write:
         raise HTTPException(403, "The demo project is read-only. Upload your own chat to get a project you can change.")
     return v
@@ -216,6 +216,42 @@ def chat_graph(pid: int, cid: int):
 def chat_memory(pid: int, cid: int):
     _found(db.get_chat(pid, cid), "chat")
     return _found(memory.get_memory(pid, cid), "memory (still processing?)")
+
+
+# ---------------------------------------------------------------- catch up (unread since you were away)
+FromTs = Annotated[str | None, Query(max_length=25, pattern=r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$")]
+
+
+@router.get("/{pid}/chats/{cid}/catchup")
+def catchup_counts(pid: int, cid: int, visitor: Visitor, mode: catchup.Mode = "auto", from_ts: FromTs = None):
+    """How many messages are unread from the chosen point, by whom, and which mention you. No model call."""
+    try:
+        return _found(catchup.summary(pid, cid, mode, from_ts, visitor), "chat")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/{pid}/chats/{cid}/catchup/digest")
+def catchup_digest(pid: int, cid: int, visitor: Visitor, mode: catchup.Mode = "auto", from_ts: FromTs = None):
+    """The counts plus a read of the unread messages: what happened, what needs you, replies. Cached."""
+    try:
+        return _found(catchup.read(pid, cid, mode, from_ts, visitor), "chat")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:  # noqa: BLE001 - every model in the chain failed; the counts still work
+        raise HTTPException(502, f"couldn't read the messages right now ({type(e).__name__}). Try again in a minute.")
+
+
+class MarkIn(BaseModel):
+    message_id: int
+
+
+@router.post("/{pid}/chats/{cid}/catchup/mark")
+def catchup_mark(pid: int, cid: int, body: MarkIn, visitor: Visitor):
+    """Remember that this browser has caught up to this message. Next time "unread" starts after it."""
+    if not catchup.mark_read(pid, cid, body.message_id, visitor):
+        raise HTTPException(404, "message not found in this chat")
+    return catchup.summary(pid, cid, "auto", None, visitor)
 
 
 @router.get("/{pid}/participants/{part_id}/persona")

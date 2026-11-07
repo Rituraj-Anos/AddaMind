@@ -192,3 +192,32 @@ export interface Health {
   public?: boolean;
   retention_hours?: number;
 }
+
+/** Where "unread" starts. Exports carry no read receipts, so it's worked out (see backend/chatintel/catchup.py). */
+export type CatchupMode = "auto" | "upload" | "day" | "time";
+
+export interface CatchupCounts {
+  chat: { id: number; title: string; kind: "group" | "direct" };
+  mode: CatchupMode;
+  label: string;
+  since: string | null;
+  options: Record<CatchupMode, boolean>;
+  me: { id: number; name: string } | null;
+  my_last_ts: string | null;
+  unread: number;
+  first_ts: string | null;
+  last_ts: string | null;
+  last_message_id: number | null;
+  senders: { participant_id: number; name: string; messages: number }[];
+  people: number;
+  media: Record<string, number>;
+  mentions: number[];
+}
+
+export interface CatchupRead extends CatchupCounts {
+  tldr: string | null;
+  topics: { title: string; summary: string; message_ids: number[] }[];
+  needs_you: { message: import("./agent").Msg; why: string; replies: string[]; source: "read" | "mention" }[];
+  decisions: { text: string; message_ids: number[] }[];
+  sampled: boolean;
+}

@@ -32,6 +32,17 @@ function StartDrop() {
   const [opened, setOpened] = useState<{ id: number; name: string } | null>(null);
   const [slow, setSlow] = useState(false);
 
+  // Cache Components keeps this page's state while you're on the project page (React Activity). Effects
+  // clean up when it's hidden, so reset there; otherwise coming back shows a stale "Starting".
+  useEffect(
+    () => () => {
+      setBusy(false);
+      setOpened(null);
+      setSlow(false);
+    },
+    [],
+  );
+
   // If the page hasn't moved on a few seconds after the project was made, offer the way in by hand.
   useEffect(() => {
     if (!opened) return;

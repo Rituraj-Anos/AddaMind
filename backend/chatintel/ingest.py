@@ -196,7 +196,8 @@ def stage_parse(job: Job) -> None:
     job.progress(len(chat.messages), len(chat.messages))
     job.info.update(title=chat.title, kind=chat.kind, created=created, messages=len(chat.messages),
                     inserted=len(new), skipped=len(chat.messages) - len(new),
-                    months=sorted({m.ts.strftime("%Y-%m") for _, m in new}))
+                    months=sorted({m.ts.strftime("%Y-%m") for _, m in new}),
+                    first_new_id=new[0][0] if new else None)  # catch-up's "since the latest upload"
     _save_media(job)
 
 
